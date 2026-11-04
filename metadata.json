@@ -1,0 +1,6 @@
+{
+  "name": "STARTBILL - Gestion financière simplifiée",
+  "description": "Plateforme numérique canadienne de facturation, suivi des dépenses et des paiements pour travailleurs autonomes, commerçants et PME au Canada, en Afrique francophone et en Haïti.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
