@@ -223,23 +223,32 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Hero Image Anchor */}
-              <div className="lg:col-span-5 relative">
-                <div className="relative rounded-2xl overflow-hidden border border-blue-100 dark:border-blue-900 shadow-xl bg-blue-50 dark:bg-blue-950 aspect-16/9 lg:aspect-4/3">
-                  <img
-                    src="/assets/images/hero_fintech.webp"
-                    alt="Espace de travail STARTBILL d'un entrepreneur moderne"
-                    referrerPolicy="no-referrer"
-                    loading="eager"
-                    decoding="async"
-                    fetchPriority="high"
-                    className="w-full h-full object-cover object-center transition-opacity duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-blue-950/80 via-transparent to-transparent flex items-end p-6">
-                    <p className="text-white text-xs sm:text-sm font-medium">
-                      STARTBILL.ca · Des outils numériques pensés pour les réalités concrètes des entreprises.
-                    </p>
-                  </div>
+              {/* Hero Video Anchor */}
+              <div className="lg:col-span-5 relative w-full flex items-center justify-center">
+                <div
+                  className="relative w-full overflow-hidden border border-blue-100/60 dark:border-blue-900/60 transition-transform duration-300 hover:scale-[1.01]"
+                  style={{
+                    borderRadius: '24px',
+                    boxShadow: '0 30px 60px -15px rgba(11, 31, 58, 0.2)',
+                  }}
+                >
+                  <video
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                    poster="/assets/images/hero-fallback.jpg"
+                    className="w-full h-auto max-w-full block"
+                    style={{
+                      borderRadius: '24px',
+                      objectFit: 'cover',
+                      aspectRatio: '16 / 9',
+                    }}
+                  >
+                    <source src="/assets/videos/startbill-hero.mp4" type="video/mp4" />
+                    Votre navigateur ne prend pas en charge la lecture de vidéos HTML5.
+                  </video>
                 </div>
               </div>
             </div>
