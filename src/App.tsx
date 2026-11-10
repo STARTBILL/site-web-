@@ -170,10 +170,17 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
               {/* Hero Text Column */}
               <div className="lg:col-span-7 space-y-6">
-                <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full">
-                  <span>Version de travail</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{SITE_METADATA.dateVersion}</span>
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/assets/aistudio/logo_icon.webp"
+                    alt="Logo STARTBILL"
+                    className="h-11 w-auto object-contain shrink-0 drop-shadow-xs"
+                  />
+                  <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-full">
+                    <span>Ton assistant financier</span>
+                    <span aria-hidden="true">·</span>
+                    <span>Version de travail {SITE_METADATA.dateVersion}</span>
+                  </div>
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-blue-950 dark:text-white leading-[1.12]">
@@ -220,10 +227,13 @@ export default function App() {
               <div className="lg:col-span-5 relative">
                 <div className="relative rounded-2xl overflow-hidden border border-blue-100 dark:border-blue-900 shadow-xl bg-blue-50 dark:bg-blue-950 aspect-16/9 lg:aspect-4/3">
                   <img
-                    src="/src/assets/images/hero_startbill_fintech_1793751036280.jpg"
+                    src="/assets/images/hero_fintech.webp"
                     alt="Espace de travail STARTBILL d'un entrepreneur moderne"
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover object-center"
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                    className="w-full h-full object-cover object-center transition-opacity duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-blue-950/80 via-transparent to-transparent flex items-end p-6">
                     <p className="text-white text-xs sm:text-sm font-medium">
@@ -527,10 +537,12 @@ export default function App() {
                 <div className="lg:col-span-5">
                   <div className="rounded-xl overflow-hidden border border-blue-100 dark:border-blue-900 aspect-4/3">
                     <img
-                      src="/src/assets/images/startbill_global_hubs_1793751037006.jpg"
+                      src="/assets/images/global_hubs.webp"
                       alt="Hubs économiques et écosystèmes entrepreneuriaux internationaux"
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover transition-opacity duration-300"
                     />
                   </div>
                 </div>
@@ -568,10 +580,12 @@ export default function App() {
               <div className="lg:col-span-5">
                 <div className="rounded-2xl overflow-hidden border border-blue-100 dark:border-blue-900 shadow-lg aspect-4/3">
                   <img
-                    src="/src/assets/images/startbill_academy_study_1793751037208.jpg"
+                    src="/assets/images/academy_study.webp"
                     alt="Entrepreneur se formant aux bases de la gestion financière"
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover transition-opacity duration-300"
                   />
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, Sun, Moon } from 'lucide-react';
+import { Menu, X, Sun, Moon, Share2, Check } from 'lucide-react';
 
 interface HeaderProps {
   activeSection: string;
@@ -17,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const navLinks = [
     { id: 'accueil', label: 'Accueil' },
@@ -35,16 +36,36 @@ export const Header: React.FC<HeaderProps> = ({
     setMobileMenuOpen(false);
   };
 
+  const handleCopyLink = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#071328]/95 backdrop-blur-md border-b border-blue-100 dark:border-blue-950 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
-        {/* Zone 1: Single text element wordmark */}
+        {/* Zone 1: Official Logo & Brand */}
         <button
           onClick={() => handleLinkClick('accueil')}
-          className="text-xl sm:text-2xl font-extrabold tracking-tight text-blue-950 dark:text-white whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity flex items-center gap-1.5"
+          className="flex items-center gap-2.5 hover:opacity-95 transition-opacity text-left shrink-0 py-1"
         >
-          <span>STARTBILL</span>
-          <span className="w-2 h-2 rounded-full bg-blue-600 inline-block mb-1"></span>
+          <img
+            src="/assets/aistudio/logo_icon.webp"
+            alt="Emblème STARTBILL"
+            className="h-10 w-auto object-contain shrink-0"
+          />
+          <div className="flex flex-col">
+            <span className="text-xl font-extrabold tracking-tight leading-none">
+              <span className="text-[#0A2540] dark:text-white">START</span>
+              <span className="text-blue-600 dark:text-blue-400">BILL</span>
+            </span>
+            <span className="text-[10px] text-slate-500 dark:text-blue-300 font-medium tracking-normal mt-0.5">
+              Ton assistant financier
+            </span>
+          </div>
         </button>
 
         {/* Zone 2: Navigation Links */}
@@ -64,8 +85,26 @@ export const Header: React.FC<HeaderProps> = ({
           ))}
         </nav>
 
-        {/* Zone 3: 1 Primary Action + theme toggle + mobile trigger */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Zone 3: 1 Primary Action + theme toggle + share link + mobile trigger */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <button
+            onClick={handleCopyLink}
+            title={copied ? "Lien copié !" : "Partager / Copier le lien"}
+            className="flex items-center gap-1 p-2 text-blue-900/70 hover:text-blue-900 dark:text-blue-300 dark:hover:text-white rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-colors text-xs"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden sm:inline text-emerald-600 dark:text-emerald-400 font-semibold">Copié</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline font-medium">Partager</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={onToggleDarkMode}
             aria-label="Basculer le thème"

@@ -73,9 +73,16 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
         {!isSubmitted ? (
           <div>
             <div className="mb-6">
-              <span className="text-xs font-semibold tracking-wider text-blue-600 dark:text-blue-400 uppercase">
-                Accès prioritaire
-              </span>
+              <div className="flex items-center gap-3 mb-3">
+                <img
+                  src="/assets/aistudio/logo_icon.webp"
+                  alt="Logo STARTBILL"
+                  className="h-10 w-auto object-contain"
+                />
+                <span className="text-xs font-semibold tracking-wider text-blue-600 dark:text-blue-400 uppercase">
+                  Accès prioritaire
+                </span>
+              </div>
               <h3 className="text-2xl font-bold tracking-tight text-blue-950 dark:text-white mt-1">
                 Rejoindre la liste d’attente
               </h3>

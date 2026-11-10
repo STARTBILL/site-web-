@@ -20,10 +20,22 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           {/* Brand & Mission Statement */}
           <div className="md:col-span-2 space-y-4">
-            <span className="text-xl font-extrabold tracking-tight text-blue-950 dark:text-white flex items-center gap-1.5">
-              <span>STARTBILL</span>
-              <span className="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>
-            </span>
+            <div className="flex items-center gap-3">
+              <img
+                src="/assets/aistudio/logo_icon.webp"
+                alt="Logo STARTBILL"
+                className="h-12 w-auto object-contain shrink-0"
+              />
+              <div className="flex flex-col">
+                <span className="text-2xl font-extrabold tracking-tight leading-none">
+                  <span className="text-blue-950 dark:text-white">START</span>
+                  <span className="text-blue-600 dark:text-blue-400">BILL</span>
+                </span>
+                <span className="text-xs text-slate-500 dark:text-blue-300 font-medium mt-1">
+                  Ton assistant financier
+                </span>
+              </div>
+            </div>
             <p className="text-sm text-slate-600 dark:text-blue-100/80 max-w-md leading-relaxed">
               {FOOTER_CONTENT.presentation}
             </p>
