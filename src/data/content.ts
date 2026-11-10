@@ -25,15 +25,18 @@ export const SITE_METADATA = {
 
 export const ACCUEIL_CONTENT = {
   banniere: {
-    title: "STARTBILL — La gestion financière, aussi simple que l’envoi d’un message.",
-    description:
-      "Simplifiez votre quotidien d’entrepreneur. STARTBILL développe une plateforme numérique destinée à faciliter la facturation, le suivi des dépenses et des paiements et la compréhension de l’activité financière des petites entreprises.",
-    sousTitre:
-      "Pensé pour les travailleurs autonomes, commerçants, microentreprises et PME au Canada, en Afrique francophone et en Haïti.",
+    title: "Nous simplifions la facturation pour les entrepreneurs et les PME",
+    phrases: [
+      "Facturer en quelques secondes.",
+      "Suivre qui te doit de l'argent.",
+      "Encaisser sans courir après tes clients.",
+    ],
+    sousTitre: "STARTBILL — Ton assistant financier. Factures, dépenses et finances, en un seul endroit.",
+    cible: "Pensé pour les travailleurs autonomes, commerçants, microentreprises et PME au Canada, en Afrique francophone et en Haïti.",
     actions: {
-      decouvrir: "Découvrir STARTBILL",
-      contacter: "Nous contacter",
       listeAttente: "Rejoindre la liste d’attente",
+      decouvrirAcademy: "Découvrir STARTBILL Academy",
+      essaiNote: "Essai gratuit de 5 jours, sans carte de crédit.",
     },
   },
   pourquoi: {
@@ -54,10 +57,6 @@ export const ACCUEIL_CONTENT = {
       desc: "Une approche attentive aux réalités de différents marchés, de leurs devises et de leurs pratiques commerciales.",
     },
   ],
-  derniereSection: {
-    title: "Vous développez votre activité ?",
-    text: "Découvrez notre vision, les solutions en préparation et les ressources éducatives de STARTBILL ACADEMY.",
-  },
 };
 
 export const A_PROPOS_CONTENT = {
@@ -83,19 +82,11 @@ export const A_PROPOS_CONTENT = {
     },
     {
       name: "Fiabilité",
-      desc: "Privilégier des informations exactes et traçables.",
+      desc: "Des informations exactes et traçables.",
     },
     {
       name: "Inclusion",
       desc: "Tenir compte des réalités économiques et linguistiques des marchés desservis.",
-    },
-    {
-      name: "Apprentissage",
-      desc: "Rendre les notions financières plus accessibles.",
-    },
-    {
-      name: "Amélioration continue",
-      desc: "Faire évoluer le produit à partir des besoins réels.",
     },
   ],
   ambition: {
@@ -510,71 +501,185 @@ export const BLOGUE_CONTENT: {
   ],
 };
 
+export const PRICING_CONTENT = {
+  title: "Des tarifs simples et transparents, adaptés à chaque marché",
+  subtitle: "Trois forfaits clairs, sans coûts cachés ni engagement",
+  trialBadge: "Essai gratuit de 5 jours, sans carte de crédit",
+  regions: {
+    canada: {
+      name: "Canada",
+      currency: "CAD",
+      plans: [
+        {
+          name: "Gratuit",
+          priceMonthly: "0 $",
+          priceAnnual: "0 $",
+          period: "par mois",
+          desc: "Pour démarrer en douceur",
+          features: [
+            "Devis & facturation de base",
+            "Suivi des encaissements",
+            "Devise CAD & taxes provinciales",
+            "Support communautaire",
+          ],
+        },
+        {
+          name: "Start",
+          priceMonthly: "15 $",
+          priceAnnual: "12 $",
+          period: "par mois",
+          popular: true,
+          desc: "Idéal pour indépendants et solos",
+          features: [
+            "Factures & reçus illimités",
+            "Suivi précis des paiements (Interac)",
+            "Gestion du catalogue de produits",
+            "Export comptable simplifié",
+          ],
+        },
+        {
+          name: "Pro",
+          priceMonthly: "30 $",
+          priceAnnual: "24 $",
+          period: "par mois",
+          desc: "Pour les microentreprises et PME",
+          features: [
+            "Tableaux de bord & rapports avancés",
+            "Multi-utilisateurs et rôles",
+            "Trésorerie prévisionnelle",
+            "Support prioritaire",
+          ],
+        },
+      ],
+    },
+    afrique: {
+      name: "Afrique francophone",
+      currency: "FCFA",
+      plans: [
+        {
+          name: "Gratuit",
+          priceMonthly: "0 FCFA",
+          priceAnnual: "0 FCFA",
+          period: "par mois",
+          desc: "Pour démarrer votre activité",
+          features: [
+            "Factures simples et devis",
+            "Catalogue de produits",
+            "Devise XOF / XAF",
+            "Support standard",
+          ],
+        },
+        {
+          name: "Start",
+          priceMonthly: "1 500 FCFA",
+          priceAnnual: "1 200 FCFA",
+          period: "par mois",
+          popular: true,
+          desc: "Pour commerçants et indépendants",
+          features: [
+            "Factures & reçus illimités",
+            "Mobile Money (Orange, Wave, MTN)",
+            "TVA OHADA automatisée",
+            "Suivi des soldes dus",
+          ],
+        },
+        {
+          name: "Pro",
+          priceMonthly: "3 000 FCFA",
+          priceAnnual: "2 400 FCFA",
+          period: "par mois",
+          desc: "Pour les PME en croissance",
+          features: [
+            "Rapports de trésorerie complets",
+            "Multi-collaborateurs",
+            "Export pour votre comptable",
+            "Accompagnement prioritaire",
+          ],
+        },
+      ],
+    },
+    haiti: {
+      name: "Haïti",
+      currency: "HTG",
+      plans: [
+        {
+          name: "Gratuit",
+          priceMonthly: "0 HTG",
+          priceAnnual: "0 HTG",
+          period: "par mois",
+          desc: "Pour tester la plateforme",
+          features: [
+            "Facturation de base",
+            "Devise HTG & USD",
+            "Enregistrement des dépenses",
+            "Support communautaire",
+          ],
+        },
+        {
+          name: "Start",
+          priceMonthly: "150 HTG",
+          priceAnnual: "120 HTG",
+          period: "par mois",
+          popular: true,
+          desc: "Pour les micro-entrepreneurs",
+          features: [
+            "Factures et reçus illimités",
+            "MonCash / Natcash",
+            "Suivi des encaissements",
+            "Gestion des fiches clients",
+          ],
+        },
+        {
+          name: "Pro",
+          priceMonthly: "300 HTG",
+          priceAnnual: "240 HTG",
+          period: "par mois",
+          desc: "Pour les entreprises structurées",
+          features: [
+            "Gestion complète de la trésorerie",
+            "Multi-accès équipe",
+            "TCA & exports comptables",
+            "Support dédié",
+          ],
+        },
+      ],
+    },
+  },
+};
+
 export const PARTENARIATS_CONTENT = {
   title: "Partenariats",
   introduction:
-    "STARTBILL souhaite échanger avec des organisations qui accompagnent les entrepreneurs et partagent l’ambition de rendre les outils de gestion plus accessibles.",
-  avecQuiCollaborer: {
-    title: "Avec qui collaborer ?",
-    publics: [
-      "Associations entrepreneuriales",
-      "Incubateurs et accélérateurs",
-      "Chambres de commerce et d'industrie",
-      "Cabinets comptables et d'expertise financière",
-      "Organisations non gouvernementales (ONG)",
-      "Établissements de formation professionnelle et universitaire",
-      "Institutions financières et acteurs de la microfinance",
-    ],
-  },
-  pourquoiNousContacter: {
-    title: "Pourquoi nous contacter ?",
-    raisons: [
-      "Explorer des activités de sensibilisation et d'éducation financière",
-      "Échanges d’expertise technique, fiscale et d'usage terrain",
-      "Programmes d’accompagnement de porteurs de projets",
-      "Retours d’expérience qualitatifs sur les besoins réels des entrepreneurs",
-      "Autres collaborations adaptées à définir d'un commun accord",
-    ],
-  },
+    "STARTBILL collabore avec les incubateurs, associations entrepreneuriales, chambres de commerce et cabinets comptables pour rendre les outils de gestion financière simples et accessibles au plus grand nombre.",
+  courtTexte:
+    "Vous accompagnez des entrepreneurs au Canada, en Afrique francophone ou en Haïti ? Développons ensemble des programmes d’accompagnement, des ateliers pédagogiques ou des passerelles techniques adaptées à vos membres.",
   invitation: {
-    title: "Discuter d’une collaboration",
-    text: "Votre organisation souhaite discuter d’une collaboration ? Présentez-nous votre mission, votre région d’activité et les pistes de coopération qui vous intéressent. Toute collaboration éventuelle fera l’objet d’échanges et, si nécessaire, d’une entente distincte.",
+    title: "Construire un partenariat à impact",
+    text: "Discutons de vos besoins et des pistes de coopération concrètes pour soutenir la réussite des entrepreneurs de votre réseau.",
     action: "Proposer un partenariat",
   },
 };
 
 export const FAQ_CONTENT = [
   {
-    q: "Qu’est-ce que STARTBILL ?",
-    a: "Une startup technologique canadienne qui développe une plateforme de gestion financière pour les entrepreneurs et petites entreprises.",
+    q: "STARTBILL est-il disponible maintenant ?",
+    a: "STARTBILL est en cours de développement. Les inscriptions à la liste d'attente sont ouvertes pour le Canada, l'Afrique francophone et Haïti : les personnes inscrites seront invitées à participer aux phases d'essais pilotes.",
   },
   {
-    q: "À qui s’adresse STARTBILL ?",
-    a: "Aux travailleurs autonomes, commerçants, microentreprises et PME.",
+    q: "Combien coûte STARTBILL ?",
+    a: "Trois forfaits, dans chaque région. Au Canada : Gratuit 0 $ CAD, Start 15 $ CAD par mois, Pro 30 $ CAD par mois (annuel −20 % : 12 $ et 24 $ par mois). En Afrique francophone : Gratuit 0 FCFA, Start 1 500 FCFA par mois, Pro 3 000 FCFA par mois (annuel −20 % : 1 200 et 2 400 FCFA par mois). En Haïti : Gratuit 0 HTG, Start 150 HTG par mois, Pro 300 HTG par mois (annuel −20 % : 120 et 240 HTG par mois).",
   },
   {
-    q: "Dans quels marchés STARTBILL souhaite-t-il être présent ?",
-    a: "Au Canada, dans plusieurs pays d’Afrique francophone et en Haïti, avec une approche adaptée à chaque contexte.",
+    q: "Comment fonctionne l'essai gratuit ?",
+    a: "5 jours gratuits, uniquement pour la version gratuite, sans carte de crédit.",
   },
   {
-    q: "Puis-je utiliser la plateforme dès aujourd’hui ?",
-    a: "La disponibilité publique n’est pas confirmée dans ce document. Consultez les annonces officielles de STARTBILL pour connaître les étapes de lancement.",
+    q: "Quelles régions sont couvertes ?",
+    a: "Le Canada, l'Afrique francophone et Haïti. Les devises, les taxes locales et les moyens de paiement sont adaptés à chaque région : TPS/TVQ/TVH et Interac au Canada, TVA OHADA et Mobile Money en Afrique francophone, TCA et MonCash/Natcash en Haïti.",
   },
   {
-    q: "Quels seront les principaux usages ?",
-    a: "La facturation, l’organisation des clients, le suivi des dépenses et des paiements et la consultation d’indicateurs financiers font partie des domaines prévus.",
-  },
-  {
-    q: "STARTBILL remplace-t-il un comptable ?",
-    a: "Non. La plateforme vise à faciliter l’organisation et la visibilité financière. Les obligations fiscales et comptables doivent être vérifiées auprès des professionnels compétents.",
-  },
-  {
-    q: "Les paiements en ligne seront-ils possibles partout ?",
-    a: "Aucune disponibilité universelle n’est annoncée. Les intégrations éventuelles dépendront des marchés, des partenaires et des exigences réglementaires.",
-  },
-  {
-    q: "Comment suivre les actualités ?",
-    a: "Consultez le blogue, STARTBILL ACADEMY et les canaux officiels de STARTBILL.",
+    q: "Est-ce que les devis et les reçus sont inclus ?",
+    a: "Oui. Devis, factures et reçus sont centralisés au même endroit dans STARTBILL, avec le suivi des paiements : payée, non payée, partiellement payée, en retard.",
   },
 ];
 
@@ -584,7 +689,7 @@ export const CONTACT_CONTENT = {
     "Une question sur STARTBILL, une proposition de partenariat ou une demande d’information ? Notre équipe est à votre écoute. Expliquez-nous brièvement votre besoin afin que nous puissions orienter votre demande.",
   coordonnees: {
     courriel: "contact.startbill@gmail.com",
-    site: "STARTBILL.ca",
+    site: "StartBill.ca",
   },
   motifs: [
     "Information générale",
@@ -600,17 +705,25 @@ export const CONTACT_CONTENT = {
 export const FOOTER_CONTENT = {
   presentation:
     "STARTBILL — Startup technologique canadienne développant des solutions numériques pour simplifier la gestion financière des entrepreneurs.",
-  noteEditoriale:
-    "Note éditoriale : Ne pas afficher de prix, d’avis clients, de chiffres d’utilisation, de dates de lancement, de certifications ou de promesses de fonctionnalités sans confirmation interne. Les textes de présentation des fonctionnalités décrivent la vision et le périmètre envisagé, non une disponibilité garantie. Les contenus locaux doivent être revus avant toute affirmation réglementaire.",
+  contactLigne: "Contact : contact.startbill@gmail.com — Site : StartBill.ca",
+  socials: [
+    { label: "Facebook StartBillapp", handle: "StartBillapp", href: "https://facebook.com/StartBillapp" },
+    { label: "Instagram @startbill.app", handle: "@startbill.app", href: "https://instagram.com/startbill.app" },
+    { label: "TikTok @startbillapp", handle: "@startbillapp", href: "https://tiktok.com/@startbillapp" },
+  ],
   sectionsNav: [
     { id: "accueil", label: "Accueil" },
-    { id: "a-propos", label: "À propos" },
+    { id: "simulateur", label: "Simulateur" },
     { id: "fonctionnalites", label: "Fonctionnalités" },
+    { id: "a-propos", label: "À propos" },
     { id: "solutions", label: "Nos solutions" },
+    { id: "tarifs", label: "Tarifs" },
     { id: "academy", label: "Academy" },
     { id: "blogue", label: "Blogue" },
     { id: "partenariats", label: "Partenariats" },
     { id: "faq", label: "FAQ" },
     { id: "contact", label: "Contact" },
   ],
+  noteEditoriale:
+    "STARTBILL présente des fonctionnalités en cours de développement et de tests pilotes. Les inscriptions à la liste d'attente permettent de participer aux phases d'essais préalables au lancement public.",
 };

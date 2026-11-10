@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Globe, Info, Linkedin, Twitter, ArrowUp } from 'lucide-react';
+import { Mail, Globe, Info, ArrowUp } from 'lucide-react';
 import { FOOTER_CONTENT, SITE_METADATA } from '../data/content';
 import { LegalDocType } from './LegalModal';
 
@@ -40,18 +40,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
               {FOOTER_CONTENT.presentation}
             </p>
             <div className="space-y-1.5 text-xs text-slate-500 dark:text-blue-300">
-              <div className="flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-blue-500" />
-                <span className="font-semibold text-blue-950 dark:text-white">{SITE_METADATA.domain}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 text-blue-500" />
-                <a
-                  href={`mailto:${SITE_METADATA.contactEmail}`}
-                  className="hover:underline text-blue-600 dark:text-blue-300 font-medium"
-                >
-                  {SITE_METADATA.contactEmail}
-                </a>
+              <div className="p-2.5 rounded-lg bg-blue-50/60 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 font-medium text-slate-700 dark:text-blue-200">
+                Contact : <a href="mailto:contact.startbill@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">contact.startbill@gmail.com</a> — Site : <a href="https://StartBill.ca" target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">StartBill.ca</a>
               </div>
             </div>
           </div>
@@ -108,26 +98,35 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
             </ul>
 
             <h4 className="text-xs font-semibold uppercase tracking-wider text-blue-950 dark:text-white mb-2">
-              Réseaux officiels
+              Suivez-nous
             </h4>
-            <div className="flex items-center gap-3 text-slate-500 dark:text-blue-300">
+            <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-blue-200">
               <a
-                href="https://linkedin.com"
+                href="https://facebook.com/StartBillapp"
                 target="_blank"
                 rel="noreferrer"
-                aria-label="LinkedIn STARTBILL"
-                className="p-1.5 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-white transition-colors"
               >
-                <Linkedin className="w-4 h-4" />
+                <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[11px] font-bold">f</span>
+                <span>Facebook StartBillapp</span>
               </a>
               <a
-                href="https://twitter.com"
+                href="https://instagram.com/startbill.app"
                 target="_blank"
                 rel="noreferrer"
-                aria-label="X (Twitter) STARTBILL"
-                className="p-1.5 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 hover:text-pink-600 dark:hover:text-pink-300 transition-colors"
               >
-                <Twitter className="w-4 h-4" />
+                <span className="w-5 h-5 rounded-md bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white flex items-center justify-center text-[10px] font-bold">📸</span>
+                <span>Instagram @startbill.app</span>
+              </a>
+              <a
+                href="https://tiktok.com/@startbillapp"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-white transition-colors"
+              >
+                <span className="w-5 h-5 rounded-md bg-black text-white flex items-center justify-center text-[10px] font-bold">🎵</span>
+                <span>TikTok @startbillapp</span>
               </a>
             </div>
           </div>
