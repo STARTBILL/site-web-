@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, Sun, Moon, Share2, Check } from 'lucide-react';
+import { Menu, X, Sun, Moon } from 'lucide-react';
 
 interface HeaderProps {
   activeSection: string;
@@ -17,7 +17,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const navLinks = [
     { id: 'accueil', label: 'Accueil' },
@@ -34,14 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
   const handleLinkClick = (id: string) => {
     onNavigate(id);
     setMobileMenuOpen(false);
-  };
-
-  const handleCopyLink = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   return (
@@ -85,26 +76,8 @@ export const Header: React.FC<HeaderProps> = ({
           ))}
         </nav>
 
-        {/* Zone 3: 1 Primary Action + theme toggle + share link + mobile trigger */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <button
-            onClick={handleCopyLink}
-            title={copied ? "Lien copié !" : "Partager / Copier le lien"}
-            className="flex items-center gap-1 p-2 text-blue-900/70 hover:text-blue-900 dark:text-blue-300 dark:hover:text-white rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-colors text-xs"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline text-emerald-600 dark:text-emerald-400 font-semibold">Copié</span>
-              </>
-            ) : (
-              <>
-                <Share2 className="w-4 h-4" />
-                <span className="hidden sm:inline font-medium">Partager</span>
-              </>
-            )}
-          </button>
-
+        {/* Zone 3: 1 Primary Action + theme toggle + mobile trigger */}
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={onToggleDarkMode}
             aria-label="Basculer le thème"
