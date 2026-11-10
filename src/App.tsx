@@ -167,89 +167,93 @@ export default function App() {
           className="relative pt-12 pb-20 lg:pt-16 lg:pb-28 overflow-hidden border-b border-blue-100 dark:border-blue-950 bg-gradient-to-b from-blue-50/50 via-white to-white dark:from-[#0a1a38]/60 dark:via-[#071328] dark:to-[#071328]"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-              {/* Hero Text Column */}
-              <div className="lg:col-span-7 space-y-6">
-                <div className="flex items-center gap-3">
-                  <img
-                    src="/assets/aistudio/logo_icon.webp"
-                    alt="Logo STARTBILL"
-                    className="h-11 w-auto object-contain shrink-0 drop-shadow-xs"
-                  />
-                  <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-full">
-                    <span>Ton assistant financier</span>
-                    <span aria-hidden="true">·</span>
-                    <span>Version de travail {SITE_METADATA.dateVersion}</span>
-                  </div>
-                </div>
-
-                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-blue-950 dark:text-white leading-[1.12]">
-                  {ACCUEIL_CONTENT.banniere.title}
-                </h1>
-
-                <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/80 leading-relaxed max-w-2xl">
-                  {ACCUEIL_CONTENT.banniere.description}
-                </p>
-
-                <div className="p-4 rounded-xl bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 shadow-xs text-sm text-slate-700 dark:text-blue-100">
-                  <span className="font-semibold text-blue-950 dark:text-white block mb-1">
-                    Écosystème ciblé :
-                  </span>
-                  {ACCUEIL_CONTENT.banniere.sousTitre}
-                </div>
-
-                {/* Primary CTA Buttons */}
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <button
-                    onClick={() => setIsWaitlistOpen(true)}
-                    className="px-6 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap active:scale-[0.98]"
-                  >
-                    {ACCUEIL_CONTENT.banniere.actions.listeAttente}
-                  </button>
-
-                  <button
-                    onClick={() => handleNavigate('fonctionnalites')}
-                    className="px-5 py-3 text-sm font-semibold text-blue-900 dark:text-blue-100 bg-white dark:bg-[#0c1e3d] hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-xl transition-colors whitespace-nowrap shadow-xs"
-                  >
-                    {ACCUEIL_CONTENT.banniere.actions.decouvrir}
-                  </button>
-
-                  <button
-                    onClick={() => handleNavigate('contact')}
-                    className="px-5 py-3 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline whitespace-nowrap"
-                  >
-                    {ACCUEIL_CONTENT.banniere.actions.contacter} →
-                  </button>
+            {/* Centered Hero Header */}
+            <div className="max-w-4xl mx-auto text-center space-y-6">
+              <div className="inline-flex items-center gap-3 justify-center">
+                <img
+                  src="/assets/aistudio/logo_icon.webp"
+                  alt="Logo STARTBILL"
+                  className="h-10 w-auto object-contain shrink-0 drop-shadow-xs"
+                />
+                <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-3.5 py-1.5 rounded-full">
+                  <span>Ton assistant financier</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Version de travail {SITE_METADATA.dateVersion}</span>
                 </div>
               </div>
 
-              {/* Hero Video Anchor */}
-              <div className="lg:col-span-5 relative w-full flex items-center justify-center">
-                <div
-                  className="relative w-full overflow-hidden border border-blue-100/60 dark:border-blue-900/60 transition-transform duration-300 hover:scale-[1.01]"
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-blue-950 dark:text-white leading-[1.12] text-balance">
+                {ACCUEIL_CONTENT.banniere.title}
+              </h1>
+
+              <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/80 leading-relaxed max-w-2xl mx-auto">
+                {ACCUEIL_CONTENT.banniere.description}
+              </p>
+
+              <div className="max-w-2xl mx-auto p-4 rounded-xl bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 shadow-xs text-sm text-slate-700 dark:text-blue-100">
+                <span className="font-semibold text-blue-950 dark:text-white block mb-1">
+                  Écosystème ciblé :
+                </span>
+                {ACCUEIL_CONTENT.banniere.sousTitre}
+              </div>
+
+              {/* Primary CTA Buttons */}
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => setIsWaitlistOpen(true)}
+                  className="px-7 py-3.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap active:scale-[0.98]"
+                >
+                  {ACCUEIL_CONTENT.banniere.actions.listeAttente}
+                </button>
+
+                <button
+                  onClick={() => handleNavigate('fonctionnalites')}
+                  className="px-6 py-3.5 text-sm font-semibold text-blue-900 dark:text-blue-100 bg-white dark:bg-[#0c1e3d] hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-xl transition-colors whitespace-nowrap shadow-xs"
+                >
+                  {ACCUEIL_CONTENT.banniere.actions.decouvrir}
+                </button>
+
+                <button
+                  onClick={() => handleNavigate('contact')}
+                  className="px-6 py-3.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline whitespace-nowrap"
+                >
+                  {ACCUEIL_CONTENT.banniere.actions.contacter} →
+                </button>
+              </div>
+            </div>
+
+            {/* Large Format Centered Video Showcase */}
+            <div className="mt-12 sm:mt-16 max-w-5xl mx-auto w-full relative">
+              {/* Subtle ambient glow behind the video */}
+              <div
+                aria-hidden="true"
+                className="absolute -inset-4 bg-gradient-to-r from-blue-400/20 via-sky-300/20 to-blue-600/20 rounded-3xl blur-2xl opacity-50 dark:opacity-30 pointer-events-none"
+              />
+
+              <div
+                className="relative w-full overflow-hidden border border-blue-100/80 dark:border-blue-900/80 bg-[#0B1F3A] transition-transform duration-300 hover:scale-[1.005]"
+                style={{
+                  borderRadius: '24px',
+                  boxShadow: '0 30px 60px -15px rgba(11, 31, 58, 0.25)',
+                }}
+              >
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="auto"
+                  poster="/assets/images/hero-fallback.jpg"
+                  className="w-full h-auto max-w-full block"
                   style={{
                     borderRadius: '24px',
-                    boxShadow: '0 30px 60px -15px rgba(11, 31, 58, 0.2)',
+                    objectFit: 'cover',
+                    aspectRatio: '16 / 9',
                   }}
                 >
-                  <video
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="auto"
-                    poster="/assets/images/hero-fallback.jpg"
-                    className="w-full h-auto max-w-full block"
-                    style={{
-                      borderRadius: '24px',
-                      objectFit: 'cover',
-                      aspectRatio: '16 / 9',
-                    }}
-                  >
-                    <source src="/assets/videos/startbill-hero.mp4" type="video/mp4" />
-                    Votre navigateur ne prend pas en charge la lecture de vidéos HTML5.
-                  </video>
-                </div>
+                  <source src="/assets/videos/startbill-hero.mp4" type="video/mp4" />
+                  Votre navigateur ne prend pas en charge la lecture de vidéos HTML5.
+                </video>
               </div>
             </div>
 
