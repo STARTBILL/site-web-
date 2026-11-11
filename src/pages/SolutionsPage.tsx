@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowLeft, ArrowRight, Check, MapPin, Building2, User, Store } from 'lucide-react';
-import { SOLUTIONS_CONTENT } from '../data/content';
+import { ArrowLeft, Check, MapPin, Building2, User, Store } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 
 interface SolutionsPageProps {
   onNavigate: (pageId: string) => void;
@@ -8,6 +9,11 @@ interface SolutionsPageProps {
 }
 
 export const SolutionsPage: React.FC<SolutionsPageProps> = ({ onNavigate, onOpenWaitlist }) => {
+  const { lang } = useLanguage();
+  const solutions = TRANSLATIONS[lang].solutions;
+  const common = TRANSLATIONS[lang].common;
+  const nav = TRANSLATIONS[lang].nav;
+
   return (
     <div className="py-12 lg:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
@@ -18,32 +24,32 @@ export const SolutionsPage: React.FC<SolutionsPageProps> = ({ onNavigate, onOpen
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
+            <span>{common.backToHome}</span>
           </button>
 
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-blue-300">
             <span>STARTBILL</span>
             <span aria-hidden="true">/</span>
-            <span className="text-blue-950 dark:text-white">Solutions</span>
+            <span className="text-blue-950 dark:text-white">{nav.solutions}</span>
           </div>
         </div>
 
         {/* Hero */}
         <div className="max-w-3xl space-y-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            {SOLUTIONS_CONTENT.subtitle}
+            {solutions.badge}
           </span>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-blue-950 dark:text-white">
-            {SOLUTIONS_CONTENT.title}
+            {solutions.title}
           </h1>
           <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/90 leading-relaxed">
-            {SOLUTIONS_CONTENT.description}
+            {solutions.desc}
           </p>
         </div>
 
         {/* 3 Profiles in full depth */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {SOLUTIONS_CONTENT.segments.map((seg, idx) => (
+          {solutions.segments.map((seg, idx) => (
             <div
               key={seg.id}
               className="p-8 rounded-3xl bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors flex flex-col justify-between"
@@ -64,7 +70,7 @@ export const SolutionsPage: React.FC<SolutionsPageProps> = ({ onNavigate, onOpen
 
                 <div className="space-y-3">
                   <span className="text-xs font-semibold uppercase tracking-wider text-blue-950 dark:text-white block">
-                    Bénéfices ciblés :
+                    {lang === 'fr' ? 'Bénéfices ciblés :' : 'Target Benefits:'}
                   </span>
                   <ul className="space-y-2.5">
                     {seg.points.map((pt, i) => (
@@ -82,7 +88,7 @@ export const SolutionsPage: React.FC<SolutionsPageProps> = ({ onNavigate, onOpen
                   onClick={onOpenWaitlist}
                   className="w-full py-2.5 px-4 rounded-xl bg-blue-50 dark:bg-blue-950/80 hover:bg-blue-600 hover:text-white text-blue-700 dark:text-blue-300 text-xs font-semibold transition-all text-center"
                 >
-                  Manifester mon intérêt pour ce profil
+                  {lang === 'fr' ? 'Rejoindre la liste pour ce profil' : 'Join waitlist for this profile'}
                 </button>
               </div>
             </div>
@@ -94,17 +100,17 @@ export const SolutionsPage: React.FC<SolutionsPageProps> = ({ onNavigate, onOpen
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-7 space-y-4">
               <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                Adaptation aux contextes réels
+                {lang === 'fr' ? 'Adaptation aux contextes réels' : 'Real-World Local Adaptation'}
               </span>
               <h2 className="text-2xl sm:text-3xl font-bold text-blue-950 dark:text-white">
-                {SOLUTIONS_CONTENT.approcheInternationale.title}
+                {solutions.internationalTitle}
               </h2>
               <p className="text-sm sm:text-base text-slate-600 dark:text-blue-100/80 leading-relaxed">
-                {SOLUTIONS_CONTENT.approcheInternationale.content}
+                {solutions.internationalDesc}
               </p>
 
               <div className="space-y-3 pt-2">
-                {SOLUTIONS_CONTENT.approcheInternationale.zones.map((zone, i) => (
+                {solutions.zones.map((zone, i) => (
                   <div key={i} className="flex items-start gap-3 text-xs sm:text-sm">
                     <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                     <div>

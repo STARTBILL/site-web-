@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowLeft, BookOpen, Sparkles, CheckCircle2, GraduationCap } from 'lucide-react';
-import { ACADEMY_CONTENT } from '../data/content';
+import { ArrowLeft, GraduationCap } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 
 interface AcademyPageProps {
   onNavigate: (pageId: string) => void;
@@ -8,6 +9,11 @@ interface AcademyPageProps {
 }
 
 export const AcademyPage: React.FC<AcademyPageProps> = ({ onNavigate, onOpenWaitlist }) => {
+  const { lang } = useLanguage();
+  const academy = TRANSLATIONS[lang].academy;
+  const common = TRANSLATIONS[lang].common;
+  const nav = TRANSLATIONS[lang].nav;
+
   return (
     <div className="py-12 lg:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
@@ -18,13 +24,13 @@ export const AcademyPage: React.FC<AcademyPageProps> = ({ onNavigate, onOpenWait
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
+            <span>{common.backToHome}</span>
           </button>
 
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-blue-300">
             <span>STARTBILL</span>
             <span aria-hidden="true">/</span>
-            <span className="text-blue-950 dark:text-white">Academy</span>
+            <span className="text-blue-950 dark:text-white">{nav.academy}</span>
           </div>
         </div>
 
@@ -33,21 +39,23 @@ export const AcademyPage: React.FC<AcademyPageProps> = ({ onNavigate, onOpenWait
           <div className="lg:col-span-7 space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 text-xs font-semibold text-blue-700 dark:text-blue-300">
               <GraduationCap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>Sensibilisation & Formation continue</span>
+              <span>{lang === 'fr' ? 'Sensibilisation & Formation continue' : 'Education & Continuous Training'}</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-blue-950 dark:text-white">
-              {ACADEMY_CONTENT.title}
+              {academy.title}
             </h1>
             <p className="text-base sm:text-lg text-slate-700 dark:text-blue-100 leading-relaxed">
-              {ACADEMY_CONTENT.presentation}
+              {academy.presentation}
             </p>
             <p className="text-sm text-slate-600 dark:text-blue-200 leading-relaxed">
-              {ACADEMY_CONTENT.ceQueVousYTrouverez}
+              {academy.ceQueVousYTrouverez}
             </p>
 
             <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 text-xs sm:text-sm text-slate-600 dark:text-blue-200 leading-relaxed">
-              <strong className="text-blue-950 dark:text-white block mb-1">Notre approche :</strong>
-              {ACADEMY_CONTENT.notreApproche}
+              <strong className="text-blue-950 dark:text-white block mb-1">
+                {lang === 'fr' ? 'Notre approche :' : 'Our Approach:'}
+              </strong>
+              {academy.notreApproche}
             </div>
           </div>
 
@@ -68,11 +76,11 @@ export const AcademyPage: React.FC<AcademyPageProps> = ({ onNavigate, onOpenWait
         {/* 4 Interactive Educational Modules */}
         <div className="space-y-6">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 dark:text-white">
-            Nos modules de sensibilisation
+            {lang === 'fr' ? 'Nos modules de sensibilisation' : 'Our Educational Modules'}
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {ACADEMY_CONTENT.modules.map((mod, i) => (
+            {academy.modules.map((mod, i) => (
               <div
                 key={i}
                 className="p-6 rounded-2xl bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors flex flex-col justify-between"
@@ -90,7 +98,7 @@ export const AcademyPage: React.FC<AcademyPageProps> = ({ onNavigate, onOpenWait
                 </div>
                 <div className="pt-3 border-t border-blue-100 dark:border-blue-900/60">
                   <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 uppercase block mb-1.5">
-                    Notions abordées :
+                    {lang === 'fr' ? 'Notions abordées :' : 'Key Concepts:'}
                   </span>
                   <div className="space-y-1">
                     {mod.notions.map((n, idx) => (
@@ -109,23 +117,25 @@ export const AcademyPage: React.FC<AcademyPageProps> = ({ onNavigate, onOpenWait
         {/* Invitation block */}
         <div className="text-center max-w-3xl mx-auto p-8 rounded-3xl bg-blue-50/50 dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 space-y-4">
           <h3 className="text-xl font-bold text-blue-950 dark:text-white">
-            Participez aux futures publications
+            {lang === 'fr' ? 'Participez aux futures publications' : 'Contribute to Future Publications'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-blue-200 max-w-xl mx-auto">
-            {ACADEMY_CONTENT.invitation}
+            {academy.invitation}
           </p>
           <div className="pt-2 flex flex-wrap justify-center gap-4">
             <button
               onClick={() => onNavigate('contact')}
               className="px-6 py-3 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs"
             >
-              Proposer un thème à l’équipe pédagogique
+              {lang === 'fr'
+                ? 'Proposer un thème à l’équipe pédagogique'
+                : 'Suggest a topic to the academic team'}
             </button>
             <button
               onClick={() => onNavigate('blogue')}
               className="px-6 py-3 text-xs sm:text-sm font-semibold text-blue-900 dark:text-blue-100 bg-white dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-50 transition-colors"
             >
-              Consulter nos articles de blogue →
+              {lang === 'fr' ? 'Consulter nos articles de blogue →' : 'Read our blog articles →'}
             </button>
           </div>
         </div>

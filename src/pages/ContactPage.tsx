@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Mail, Globe, Send, CheckCircle2, MapPin } from 'lucide-react';
-import { CONTACT_CONTENT, FOOTER_CONTENT } from '../data/content';
+import { ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 
 interface ContactPageProps {
   onNavigate: (pageId: string) => void;
@@ -8,12 +9,17 @@ interface ContactPageProps {
 }
 
 export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSubject }) => {
+  const { lang } = useLanguage();
+  const contact = TRANSLATIONS[lang].contact;
+  const common = TRANSLATIONS[lang].common;
+  const nav = TRANSLATIONS[lang].nav;
+
   const [form, setForm] = useState({
     name: '',
     email: '',
     organization: '',
     region: 'Canada',
-    subject: initialSubject || 'Information générale',
+    subject: initialSubject || contact.motifs[0],
     message: '',
   });
 
@@ -23,15 +29,21 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.email || !form.email.includes('@')) {
-      setError('Veuillez renseigner une adresse courriel valide.');
+      setError(
+        lang === 'fr'
+          ? 'Veuillez renseigner une adresse courriel valide.'
+          : 'Please enter a valid email address.'
+      );
       return;
     }
     if (!form.name.trim()) {
-      setError('Veuillez indiquer votre nom.');
+      setError(lang === 'fr' ? 'Veuillez indiquer votre nom.' : 'Please enter your name.');
       return;
     }
     if (!form.message.trim()) {
-      setError('Veuillez rédiger votre message.');
+      setError(
+        lang === 'fr' ? 'Veuillez rédiger votre message.' : 'Please enter your message.'
+      );
       return;
     }
 
@@ -60,26 +72,26 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
+            <span>{common.backToHome}</span>
           </button>
 
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-blue-300">
             <span>STARTBILL</span>
             <span aria-hidden="true">/</span>
-            <span className="text-blue-950 dark:text-white">Contact</span>
+            <span className="text-blue-950 dark:text-white">{nav.contact}</span>
           </div>
         </div>
 
         {/* Header */}
         <div className="max-w-3xl space-y-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            Échange & Information
+            {lang === 'fr' ? 'Échange & Information' : 'Inquiries & Information'}
           </span>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-blue-950 dark:text-white">
-            {CONTACT_CONTENT.title}
+            {contact.title}
           </h1>
           <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/90 leading-relaxed">
-            {CONTACT_CONTENT.texteAccueil}
+            {contact.texteAccueil}
           </p>
         </div>
 
@@ -89,25 +101,42 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
           <div className="lg:col-span-5 space-y-6">
             <div className="p-8 rounded-3xl bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 shadow-xs space-y-6">
               <h2 className="text-lg font-bold text-blue-950 dark:text-white">
-                Coordonnées officielles
+                {lang === 'fr' ? 'Coordonnées officielles' : 'Official Contact Info'}
               </h2>
 
               <div className="p-3.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/80 font-medium text-xs sm:text-sm text-slate-700 dark:text-blue-200">
-                Contact : <a href="mailto:contact.startbill@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">contact.startbill@gmail.com</a> — Site : <a href="https://StartBill.ca" target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">StartBill.ca</a>
+                Contact :{' '}
+                <a
+                  href={`mailto:${contact.coordonnees.courriel}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {contact.coordonnees.courriel}
+                </a>{' '}
+                — {lang === 'fr' ? 'Site :' : 'Site :'}{' '}
+                <a
+                  href="https://StartBill.ca"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                >
+                  {contact.coordonnees.site}
+                </a>
               </div>
 
               <div className="space-y-3 pt-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-blue-950 dark:text-white block">
-                  Suivez-nous sur les réseaux :
+                  {common.followUs}
                 </span>
                 <div className="flex flex-col gap-2.5 text-xs text-slate-600 dark:text-blue-200">
                   <a
-                    href="https://facebook.com/StartBillapp"
+                    href="https://www.facebook.com/StartBillapp"
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2.5 hover:text-blue-600 dark:hover:text-white transition-colors"
                   >
-                    <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">f</span>
+                    <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                      f
+                    </span>
                     <span>Facebook StartBillapp</span>
                   </a>
                   <a
@@ -116,16 +145,20 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
                     rel="noreferrer"
                     className="inline-flex items-center gap-2.5 hover:text-pink-600 dark:hover:text-pink-300 transition-colors"
                   >
-                    <span className="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white flex items-center justify-center text-xs font-bold">📸</span>
+                    <span className="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white flex items-center justify-center text-xs font-bold">
+                      📸
+                    </span>
                     <span>Instagram @startbill.app</span>
                   </a>
                   <a
-                    href="https://tiktok.com/@startbillapp"
+                    href="https://www.tiktok.com/@startbill_.app?_r=1&_t=ZS-9BIOJUwAm4D"
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2.5 hover:text-blue-600 dark:hover:text-white transition-colors"
                   >
-                    <span className="w-6 h-6 rounded-lg bg-black text-white flex items-center justify-center text-xs font-bold">🎵</span>
+                    <span className="w-6 h-6 rounded-lg bg-black text-white flex items-center justify-center text-xs font-bold">
+                      🎵
+                    </span>
                     <span>TikTok @startbillapp</span>
                   </a>
                 </div>
@@ -133,8 +166,12 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
             </div>
 
             <div className="p-6 rounded-2xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/60 text-xs text-slate-600 dark:text-blue-200 leading-relaxed">
-              <span className="font-bold text-blue-950 dark:text-white block mb-1">Délai indicatif de réponse :</span>
-              Nous traitons chaque demande avec attention sous 24 à 48 heures ouvrables.
+              <span className="font-bold text-blue-950 dark:text-white block mb-1">
+                {lang === 'fr' ? 'Délai indicatif de réponse :' : 'Indicative Response Time:'}
+              </span>
+              {lang === 'fr'
+                ? 'Nous traitons chaque demande avec attention sous 24 à 48 heures ouvrables.'
+                : 'We carefully review each inquiry within 24 to 48 business hours.'}
             </div>
           </div>
 
@@ -152,21 +189,21 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                        Votre nom complet *
+                        {contact.nameLabel}
                       </label>
                       <input
                         type="text"
                         required
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        placeholder="Jean Tremblay"
+                        placeholder={lang === 'fr' ? 'Jean Tremblay' : 'John Doe'}
                         className="w-full px-3.5 py-2.5 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                        Courriel professionnel *
+                        {contact.emailLabel}
                       </label>
                       <input
                         type="email"
@@ -182,27 +219,27 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                        Organisation ou entreprise
+                        {contact.orgLabel}
                       </label>
                       <input
                         type="text"
                         value={form.organization}
                         onChange={(e) => setForm({ ...form, organization: e.target.value })}
-                        placeholder="Nom de votre structure"
+                        placeholder={lang === 'fr' ? 'Nom de votre structure' : 'Company or Studio name'}
                         className="w-full px-3.5 py-2.5 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                        Motif de contact *
+                        {contact.subjectLabel}
                       </label>
                       <select
                         value={form.subject}
                         onChange={(e) => setForm({ ...form, subject: e.target.value })}
                         className="w-full px-3.5 py-2.5 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                       >
-                        {CONTACT_CONTENT.motifs.map((motif, i) => (
+                        {contact.motifs.map((motif, i) => (
                           <option key={i} value={motif}>
                             {motif}
                           </option>
@@ -213,14 +250,18 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
 
                   <div>
                     <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                      Votre message *
+                      {contact.messageLabel}
                     </label>
                     <textarea
                       rows={5}
                       required
                       value={form.message}
                       onChange={(e) => setForm({ ...form, message: e.target.value })}
-                      placeholder="Expliquez-nous brièvement votre besoin afin que nous puissions orienter votre demande..."
+                      placeholder={
+                        lang === 'fr'
+                          ? 'Expliquez-nous brièvement votre besoin afin que nous puissions orienter votre demande...'
+                          : 'Briefly describe your question or proposal...'
+                      }
                       className="w-full px-3.5 py-2.5 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                     />
                   </div>
@@ -230,17 +271,17 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
                     className="w-full py-3.5 px-4 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs active:scale-[0.98]"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Transmettre mon message</span>
+                    <span>{contact.submitBtn}</span>
                   </button>
                 </form>
               ) : (
                 <div className="py-12 text-center space-y-4">
                   <CheckCircle2 className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto" />
                   <h3 className="text-2xl font-bold text-blue-950 dark:text-white">
-                    Message bien transmis
+                    {contact.sentTitle}
                   </h3>
                   <p className="text-sm text-slate-600 dark:text-blue-100 max-w-md mx-auto leading-relaxed">
-                    {CONTACT_CONTENT.confirmationMessage}
+                    {contact.sentText}
                   </p>
                   <button
                     onClick={() => {
@@ -250,13 +291,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate, initialSub
                         email: '',
                         organization: '',
                         region: 'Canada',
-                        subject: 'Information générale',
+                        subject: contact.motifs[0],
                         message: '',
                       });
                     }}
                     className="px-5 py-2.5 text-xs font-semibold text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 rounded-xl transition-colors"
                   >
-                    Envoyer un nouveau message
+                    {contact.sendAnother}
                   </button>
                 </div>
               )}

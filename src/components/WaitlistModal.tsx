@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckCircle2, ShieldCheck, Mail, MapPin, User, Briefcase } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 
 interface WaitlistModalProps {
   isOpen: boolean;
@@ -7,11 +9,14 @@ interface WaitlistModalProps {
 }
 
 export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose }) => {
+  const { lang } = useLanguage();
+  const t = TRANSLATIONS[lang].waitlistModal;
+
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    profile: 'Travailleur autonome',
-    region: 'Canada',
+    profile: 'autonome',
+    region: 'canada',
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +26,11 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email.trim() || !formData.email.includes('@')) {
-      setError('Veuillez renseigner une adresse courriel valide.');
+      setError(t.errorEmail);
       return;
     }
     if (!formData.fullName.trim()) {
-      setError('Veuillez indiquer votre nom ou le nom de votre entreprise.');
+      setError(t.errorName);
       return;
     }
 
@@ -49,8 +54,8 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
     setFormData({
       fullName: '',
       email: '',
-      profile: 'Travailleur autonome',
-      region: 'Canada',
+      profile: 'autonome',
+      region: 'canada',
     });
     onClose();
   };
@@ -64,7 +69,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
       <div className="relative w-full max-w-lg bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900 rounded-2xl p-6 sm:p-8 shadow-2xl transition-all">
         <button
           onClick={onClose}
-          aria-label="Fermer"
+          aria-label={t.closeBtn}
           className="absolute top-5 right-5 text-slate-400 hover:text-blue-950 dark:hover:text-white p-1 rounded-lg transition-colors"
         >
           <X className="w-5 h-5" />
@@ -80,14 +85,14 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                   className="h-10 w-auto object-contain"
                 />
                 <span className="text-xs font-semibold tracking-wider text-blue-600 dark:text-blue-400 uppercase">
-                  Accès prioritaire
+                  {t.badge}
                 </span>
               </div>
               <h3 className="text-2xl font-bold tracking-tight text-blue-950 dark:text-white mt-1">
-                Rejoindre la liste d’attente
+                {t.title}
               </h3>
               <p className="text-sm text-slate-600 dark:text-blue-100/80 mt-2">
-                Soyez parmi les premiers informés des avancées techniques de STARTBILL et des ouvertures d’essais pilotes au Canada, en Afrique francophone et en Haïti.
+                {t.subtitle}
               </p>
             </div>
 
@@ -100,7 +105,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                  Nom ou dénomination commerciale
+                  {t.nameLabel}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
@@ -111,7 +116,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                     required
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    placeholder="Ex: Sophie Tremblay / Studio Alpha"
+                    placeholder={t.namePlaceholder}
                     className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                   />
                 </div>
@@ -119,7 +124,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                  Adresse courriel professionnelle
+                  {t.emailLabel}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
@@ -130,7 +135,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="nom@entreprise.com"
+                    placeholder={t.emailPlaceholder}
                     className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                   />
                 </div>
@@ -139,7 +144,7 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                    Profil d'activité
+                    {t.profileLabel}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
@@ -150,17 +155,17 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                       onChange={(e) => setFormData({ ...formData, profile: e.target.value })}
                       className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                     >
-                      <option value="Travailleur autonome">Travailleur autonome</option>
-                      <option value="Commerçant / Microentreprise">Commerçant / Microentreprise</option>
-                      <option value="Petite et moyenne entreprise (PME)">PME</option>
-                      <option value="Porteur de projet">Porteur de projet</option>
+                      <option value="autonome">{t.profiles.autonome}</option>
+                      <option value="commercant">{t.profiles.commercant}</option>
+                      <option value="pme">{t.profiles.pme}</option>
+                      <option value="projet">{t.profiles.projet}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                    Région d'activité
+                    {t.regionLabel}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
@@ -171,14 +176,14 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                       onChange={(e) => setFormData({ ...formData, region: e.target.value })}
                       className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                     >
-                      <option value="Canada">Canada (Québec & autres provinces)</option>
-                      <option value="Afrique francophone - Sénégal">Sénégal</option>
-                      <option value="Afrique francophone - Côte d'Ivoire">Côte d'Ivoire</option>
-                      <option value="Afrique francophone - Cameroun">Cameroun</option>
-                      <option value="Afrique francophone - Bénin">Bénin</option>
-                      <option value="Afrique francophone - Autre pays">Autre pays d'Afrique francophone</option>
-                      <option value="Haïti">Haïti</option>
-                      <option value="Autre région">Autre région</option>
+                      <option value="canada">{t.regions.canada}</option>
+                      <option value="senegal">{t.regions.senegal}</option>
+                      <option value="ci">{t.regions.ci}</option>
+                      <option value="cameroun">{t.regions.cameroun}</option>
+                      <option value="benin">{t.regions.benin}</option>
+                      <option value="afriqueAutre">{t.regions.afriqueAutre}</option>
+                      <option value="haiti">{t.regions.haiti}</option>
+                      <option value="autre">{t.regions.autre}</option>
                     </select>
                   </div>
                 </div>
@@ -189,13 +194,13 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                   type="submit"
                   className="w-full py-2.5 px-4 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs active:scale-[0.98]"
                 >
-                  Confirmer mon inscription à la liste d’attente
+                  {t.submitBtn}
                 </button>
               </div>
 
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-blue-300 pt-2">
                 <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                <span>Vos données sont strictement confidentielles et ne seront jamais partagées.</span>
+                <span>{t.privacyNotice}</span>
               </div>
             </form>
           </div>
@@ -203,16 +208,16 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
           <div className="text-center py-6">
             <CheckCircle2 className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-blue-950 dark:text-white mb-2">
-              Merci pour votre intérêt !
+              {t.successTitle}
             </h3>
             <p className="text-sm text-slate-600 dark:text-blue-200 max-w-sm mx-auto mb-6">
-              Votre inscription pour <span className="font-semibold text-blue-950 dark:text-white">{formData.email}</span> a bien été enregistrée. Notre équipe vous tiendra informé des étapes de lancement et des publications exclusives de la STARTBILL ACADEMY.
+              {t.successMessage} ({formData.email})
             </p>
             <button
               onClick={handleReset}
               className="py-2 px-6 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs"
             >
-              Fermer
+              {t.closeBtn}
             </button>
           </div>
         )}

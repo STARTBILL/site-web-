@@ -36,7 +36,8 @@ export const ACCUEIL_CONTENT = {
     actions: {
       listeAttente: "Rejoindre la liste d’attente",
       decouvrirAcademy: "Découvrir STARTBILL Academy",
-      essaiNote: "Essai gratuit de 5 jours, sans carte de crédit.",
+      essaiNote:
+        "Découvrez STARTBILL en avant-première. Rejoignez notre liste d'attente et soyez parmi les premiers entrepreneurs invités à tester notre plateforme de facturation et de gestion financière.",
     },
   },
   pourquoi: {
@@ -504,7 +505,7 @@ export const BLOGUE_CONTENT: {
 export const PRICING_CONTENT = {
   title: "Des tarifs simples et transparents, adaptés à chaque marché",
   subtitle: "Trois forfaits clairs, sans coûts cachés ni engagement",
-  trialBadge: "Essai gratuit de 5 jours, sans carte de crédit",
+  trialBadge: "Phase d'essais pilotes · Sans carte de crédit",
   regions: {
     canada: {
       name: "Canada",
@@ -670,8 +671,8 @@ export const FAQ_CONTENT = [
     a: "Trois forfaits, dans chaque région. Au Canada : Gratuit 0 $ CAD, Start 15 $ CAD par mois, Pro 30 $ CAD par mois (annuel −20 % : 12 $ et 24 $ par mois). En Afrique francophone : Gratuit 0 FCFA, Start 1 500 FCFA par mois, Pro 3 000 FCFA par mois (annuel −20 % : 1 200 et 2 400 FCFA par mois). En Haïti : Gratuit 0 HTG, Start 150 HTG par mois, Pro 300 HTG par mois (annuel −20 % : 120 et 240 HTG par mois).",
   },
   {
-    q: "Comment fonctionne l'essai gratuit ?",
-    a: "5 jours gratuits, uniquement pour la version gratuite, sans carte de crédit.",
+    q: "Comment fonctionne l'accès en avant-première ?",
+    a: "Les personnes inscrites sur la liste d'attente recevront une invitation prioritaire pour tester gratuitement la plateforme STARTBILL lors des phases d'essais pilotes, sans carte de crédit requise.",
   },
   {
     q: "Quelles régions sont couvertes ?",
@@ -707,9 +708,9 @@ export const FOOTER_CONTENT = {
     "STARTBILL — Startup technologique canadienne développant des solutions numériques pour simplifier la gestion financière des entrepreneurs.",
   contactLigne: "Contact : contact.startbill@gmail.com — Site : StartBill.ca",
   socials: [
-    { label: "Facebook StartBillapp", handle: "StartBillapp", href: "https://facebook.com/StartBillapp" },
+    { label: "Facebook StartBillapp", handle: "StartBillapp", href: "https://www.facebook.com/StartBillapp" },
     { label: "Instagram @startbill.app", handle: "@startbill.app", href: "https://instagram.com/startbill.app" },
-    { label: "TikTok @startbillapp", handle: "@startbillapp", href: "https://tiktok.com/@startbillapp" },
+    { label: "TikTok @startbillapp", handle: "@startbill_.app", href: "https://www.tiktok.com/@startbill_.app?_r=1&_t=ZS-9BIOJUwAm4D" },
   ],
   sectionsNav: [
     { id: "accueil", label: "Accueil" },

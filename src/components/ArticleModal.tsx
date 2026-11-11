@@ -1,6 +1,7 @@
-import React from 'react';
-import { X, Clock, Calendar, AlertTriangle, BookOpen, Share2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Clock, Calendar, AlertTriangle, BookOpen, Check } from 'lucide-react';
 import { Article } from '../data/content';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ArticleModalProps {
   article: Article | null;
@@ -13,12 +14,16 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   onClose,
   onOpenAcademy,
 }) => {
+  const { lang } = useLanguage();
+  const [copied, setCopied] = useState(false);
+
   if (!article) return null;
 
-  const handleShare = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Lien copié dans le presse-papiers.');
+  const handleCopyLink = () => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(window.location.href).catch(() => {});
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -48,15 +53,22 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleShare}
-              title="Partager"
-              className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-white rounded-lg transition-colors"
+              onClick={handleCopyLink}
+              title={lang === 'fr' ? 'Copier le lien' : 'Copy link'}
+              className="px-2 py-1 text-xs text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition-colors flex items-center gap-1"
             >
-              <Share2 className="w-4 h-4" />
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-green-600" />
+                  <span className="text-green-600">{lang === 'fr' ? 'Copié' : 'Copied'}</span>
+                </>
+              ) : (
+                <span>{lang === 'fr' ? 'Lien' : 'Link'}</span>
+              )}
             </button>
             <button
               onClick={onClose}
-              title="Fermer"
+              title={lang === 'fr' ? 'Fermer' : 'Close'}
               className="p-1.5 text-slate-400 hover:text-blue-950 dark:hover:text-white rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
@@ -78,7 +90,9 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
             <div className="flex items-start gap-3 p-3.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-xl text-blue-900 dark:text-blue-200 text-xs leading-relaxed">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
               <div>
-                <span className="font-semibold block mb-0.5">Avertissement légal :</span>
+                <span className="font-semibold block mb-0.5">
+                  {lang === 'fr' ? 'Avertissement légal :' : 'Legal Notice:'}
+                </span>
                 {article.disclaimer}
               </div>
             </div>
@@ -93,7 +107,11 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
           <div className="pt-6 border-t border-blue-100 dark:border-blue-900/60 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-blue-300">
               <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>Contenu rédigé pour STARTBILL ACADEMY et le blogue officiel</span>
+              <span>
+                {lang === 'fr'
+                  ? 'Contenu rédigé pour STARTBILL ACADEMY et le blogue officiel'
+                  : 'Official content prepared for STARTBILL ACADEMY and blog'}
+              </span>
             </div>
             {onOpenAcademy && (
               <button
@@ -103,7 +121,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
                 }}
                 className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
               >
-                Explorer tous les guides Academy →
+                {lang === 'fr' ? 'Explorer tous les guides Academy →' : 'Explore all Academy guides →'}
               </button>
             )}
           </div>

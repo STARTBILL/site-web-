@@ -10,6 +10,7 @@ import { WaitlistModal } from './components/WaitlistModal';
 import { ArticleModal } from './components/ArticleModal';
 import { LegalModal, LegalDocType } from './components/LegalModal';
 import { Article } from './data/content';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 
 // Dedicated Pages
 import { HomePage } from './pages/HomePage';
@@ -49,13 +50,14 @@ const getPageFromHash = (): PageId => {
   return 'accueil';
 };
 
-export default function App() {
+function MainApp() {
   const [currentPage, setCurrentPage] = useState<PageId>(getPageFromHash);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [selectedLegal, setSelectedLegal] = useState<LegalDocType | null>(null);
   const [contactSubject, setContactSubject] = useState<string>('Information générale');
+  const { lang } = useLanguage();
 
   // Initialize theme
   useEffect(() => {
@@ -90,13 +92,13 @@ export default function App() {
   };
 
   const handlePartnerInquiry = () => {
-    setContactSubject('Partenariat');
+    setContactSubject(lang === 'fr' ? 'Partenariat' : 'Partnership');
     handleNavigate('contact');
   };
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#071328] text-slate-900 dark:text-blue-50 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 transition-colors">
-      {/* 3-Zone Navigation Header with Active Page indicator */}
+      {/* 3-Zone Navigation Header with Active Page indicator & Language Switcher */}
       <Header
         activeSection={currentPage}
         onNavigate={handleNavigate}
@@ -207,5 +209,13 @@ export default function App() {
         onClose={() => setSelectedLegal(null)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <MainApp />
+    </LanguageProvider>
   );
 }

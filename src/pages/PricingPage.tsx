@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Check, ShieldCheck, HelpCircle, CheckCircle2 } from 'lucide-react';
-import { PRICING_CONTENT } from '../data/content';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 
 interface PricingPageProps {
   onNavigate: (pageId: string) => void;
@@ -8,10 +9,13 @@ interface PricingPageProps {
 }
 
 export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWaitlist }) => {
+  const { lang } = useLanguage();
+  const t = TRANSLATIONS[lang];
+
   const [pricingRegion, setPricingRegion] = useState<'canada' | 'afrique' | 'haiti'>('canada');
   const [isAnnualPricing, setIsAnnualPricing] = useState(false);
 
-  const currentRegionPricing = PRICING_CONTENT.regions[pricingRegion];
+  const currentRegionPricing = t.pricing.regions[pricingRegion];
 
   return (
     <div className="py-12 lg:py-16">
@@ -23,31 +27,31 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
+            <span>{t.common.backToHome}</span>
           </button>
 
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-blue-300">
             <span>STARTBILL</span>
             <span aria-hidden="true">/</span>
-            <span className="text-blue-950 dark:text-white">Tarifs</span>
+            <span className="text-blue-950 dark:text-white">{t.nav.tarifs}</span>
           </div>
         </div>
 
         {/* Hero */}
         <div className="max-w-3xl mx-auto text-center space-y-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            Tarifs clairs & régionaux
+            {lang === 'fr' ? 'Tarifs clairs & régionaux' : 'Transparent Regional Pricing'}
           </span>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-blue-950 dark:text-white">
-            {PRICING_CONTENT.title}
+            {t.pricing.title}
           </h1>
           <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/90 leading-relaxed">
-            {PRICING_CONTENT.subtitle}
+            {t.pricing.subtitle}
           </p>
 
           <div className="inline-flex items-center gap-2 mt-2 px-4 py-1.5 rounded-full bg-blue-100/70 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-xs font-semibold text-blue-900 dark:text-blue-200">
             <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>{PRICING_CONTENT.trialBadge}</span>
+            <span>{t.common.pilotBadge}</span>
           </div>
         </div>
 
@@ -95,7 +99,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
                   : 'text-slate-500 dark:text-blue-300'
               }`}
             >
-              Mensuel
+              {t.pricing.monthly}
             </button>
             <button
               onClick={() => setIsAnnualPricing(true)}
@@ -105,9 +109,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
                   : 'text-slate-500 dark:text-blue-300'
               }`}
             >
-              <span>Annuel</span>
+              <span>{t.pricing.annual}</span>
               <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-400 text-blue-950 font-bold">
-                −20 %
+                {t.pricing.discountBadge}
               </span>
             </button>
           </div>
@@ -130,7 +134,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
               >
                 {isPopular && (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full bg-blue-600 text-white text-[11px] font-bold tracking-wider uppercase shadow-xs">
-                    Recommandé
+                    {t.pricing.mostPopular}
                   </div>
                 )}
 
@@ -159,14 +163,14 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
                     </div>
                     {isAnnualPricing && plan.priceMonthly !== '0 $' && plan.priceMonthly !== '0 FCFA' && plan.priceMonthly !== '0 HTG' && (
                       <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold block mt-1.5">
-                        Facturé annuellement avec −20 % de réduction
+                        {t.pricing.annualDiscountNote}
                       </span>
                     )}
                   </div>
 
                   <div className="space-y-3 mb-8">
                     <span className="text-xs font-semibold text-blue-950 dark:text-white uppercase tracking-wider block">
-                      Inclus dans ce forfait :
+                      {t.pricing.includedFeatures}
                     </span>
                     {plan.features.map((feature, i) => (
                       <div key={i} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-700 dark:text-blue-100">
@@ -185,20 +189,22 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
                       : 'bg-blue-50 dark:bg-blue-950 hover:bg-blue-100 text-blue-950 dark:text-blue-100 border border-blue-200 dark:border-blue-800'
                   }`}
                 >
-                  Rejoindre la liste d’attente
+                  {t.nav.joinWaitlist}
                 </button>
               </div>
             );
           })}
         </div>
 
-        {/* FAQ note on billing */}
+        {/* Note sur la liste d'attente et la phase pilote (remplaçant le texte des 5 jours) */}
         <div className="max-w-3xl mx-auto p-6 rounded-2xl bg-blue-50/50 dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 text-xs sm:text-sm text-slate-600 dark:text-blue-200 space-y-2">
           <strong className="text-blue-950 dark:text-white block font-bold">
-            Note sur l'engagement et l'essai gratuit :
+            {lang === 'fr'
+              ? 'Note sur la liste d\'attente et la phase pilote :'
+              : 'Note on Waitlist & Pilot Phases:'}
           </strong>
           <p>
-            Les 5 jours d'essai gratuit sont appliqués sans carte de crédit lors de l'activation du compte. Aucun engagement de durée n'est exigé, vous êtes libre de faire évoluer votre forfait ou de revenir à la formule gratuite à tout moment.
+            {t.common.earlyPreviewPitch}
           </p>
         </div>
       </div>

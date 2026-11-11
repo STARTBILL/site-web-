@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Search, BookOpen, Clock, Tag } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 import { BLOGUE_CONTENT, Article } from '../data/content';
 
 interface BlogPageProps {
@@ -8,8 +10,20 @@ interface BlogPageProps {
 }
 
 export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate, onSelectArticle }) => {
+  const { lang } = useLanguage();
+  const common = TRANSLATIONS[lang].common;
+  const nav = TRANSLATIONS[lang].nav;
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const categories = [
+    { id: 'all', name: lang === 'fr' ? 'Tous les articles' : 'All Articles' },
+    { id: 'facturation', name: lang === 'fr' ? 'Facturation' : 'Invoicing' },
+    { id: 'gestion', name: lang === 'fr' ? 'Gestion financière' : 'Financial Management' },
+    { id: 'international', name: lang === 'fr' ? 'Régions & Devises' : 'Regions & Currencies' },
+    { id: 'produit', name: lang === 'fr' ? 'Actualités produit' : 'Product News' },
+  ];
 
   const filteredArticles = BLOGUE_CONTENT.articles.filter((art) => {
     const matchesCategory = selectedCategory === 'all' || art.category === selectedCategory;
@@ -30,26 +44,28 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate, onSelectArticle 
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
+            <span>{common.backToHome}</span>
           </button>
 
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-blue-300">
             <span>STARTBILL</span>
             <span aria-hidden="true">/</span>
-            <span className="text-blue-950 dark:text-white">Blogue</span>
+            <span className="text-blue-950 dark:text-white">{nav.blogue}</span>
           </div>
         </div>
 
         {/* Header */}
         <div className="max-w-3xl space-y-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            Ressources & Guides pratiques
+            {lang === 'fr' ? 'Ressources & Guides pratiques' : 'Practical Guides & Resources'}
           </span>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-blue-950 dark:text-white">
-            Le blogue STARTBILL
+            {lang === 'fr' ? 'Le blogue STARTBILL' : 'The STARTBILL Blog'}
           </h1>
           <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/90 leading-relaxed">
-            {BLOGUE_CONTENT.introduction}
+            {lang === 'fr'
+              ? BLOGUE_CONTENT.introduction
+              : 'Insights, educational deep-dives, and practical advice to guide entrepreneurs through invoices, receivables, and regional taxation.'}
           </p>
         </div>
 
@@ -61,13 +77,13 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate, onSelectArticle 
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher un article ou un mot-clé..."
+              placeholder={lang === 'fr' ? 'Rechercher un article ou un mot-clé...' : 'Search articles or keywords...'}
               className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-white dark:bg-[#0c1e3d] border border-blue-200 dark:border-blue-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
             />
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {BLOGUE_CONTENT.categories.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
@@ -97,7 +113,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate, onSelectArticle 
                     {art.category.replace('-', ' ')}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span>{art.readTime} de lecture</span>
+                  <span>{art.readTime}</span>
                 </div>
 
                 <h2 className="text-lg font-bold text-blue-950 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -112,7 +128,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate, onSelectArticle 
               <div className="pt-4 mt-6 border-t border-blue-100 dark:border-blue-900/60 flex items-center justify-between text-xs">
                 <span className="text-slate-400 dark:text-blue-300">{art.date}</span>
                 <span className="font-semibold text-blue-600 dark:text-blue-400 group-hover:underline">
-                  Lire l'article complet →
+                  {common.readArticle}
                 </span>
               </div>
             </article>
@@ -121,7 +137,9 @@ export const BlogPage: React.FC<BlogPageProps> = ({ onNavigate, onSelectArticle 
 
         {filteredArticles.length === 0 && (
           <div className="py-16 text-center text-slate-500 dark:text-blue-300 text-sm">
-            Aucun article ne correspond à votre recherche.
+            {lang === 'fr'
+              ? 'Aucun article ne correspond à votre recherche.'
+              : 'No articles match your search criteria.'}
           </div>
         )}
       </div>

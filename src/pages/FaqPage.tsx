@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Search, ChevronDown, ChevronUp, HelpCircle, ArrowRight } from 'lucide-react';
-import { FAQ_CONTENT } from '../data/content';
+import { ArrowLeft, Search, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { TRANSLATIONS } from '../data/translations';
 
 interface FaqPageProps {
   onNavigate: (pageId: string) => void;
 }
 
 export const FaqPage: React.FC<FaqPageProps> = ({ onNavigate }) => {
+  const { lang } = useLanguage();
+  const faqData = TRANSLATIONS[lang].faq;
+  const common = TRANSLATIONS[lang].common;
+
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredFaqs = FAQ_CONTENT.filter(
+  const filteredFaqs = faqData.items.filter(
     (item) =>
       item.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.a.toLowerCase().includes(searchQuery.toLowerCase())
@@ -26,7 +31,7 @@ export const FaqPage: React.FC<FaqPageProps> = ({ onNavigate }) => {
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Retour à l'accueil</span>
+            <span>{common.backToHome}</span>
           </button>
 
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-blue-300">
@@ -39,13 +44,13 @@ export const FaqPage: React.FC<FaqPageProps> = ({ onNavigate }) => {
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto space-y-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-            Questions & Réponses officielles
+            {faqData.subtitle}
           </span>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-blue-950 dark:text-white">
-            Foire aux questions
+            {faqData.title}
           </h1>
           <p className="text-base sm:text-lg text-slate-600 dark:text-blue-100/90 leading-relaxed">
-            Retrouvez ici toutes les informations sur la disponibilité de STARTBILL, les tarifs régionaux, l'essai gratuit de 5 jours et les fonctionnalités incluses.
+            {faqData.desc}
           </p>
 
           {/* Search bar */}
@@ -55,7 +60,7 @@ export const FaqPage: React.FC<FaqPageProps> = ({ onNavigate }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher une question ou un terme..."
+              placeholder={faqData.searchPlaceholder}
               className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-white dark:bg-[#0c1e3d] border border-blue-200 dark:border-blue-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
             />
           </div>
@@ -99,16 +104,24 @@ export const FaqPage: React.FC<FaqPageProps> = ({ onNavigate }) => {
         {/* Still have questions */}
         <div className="p-8 rounded-3xl bg-blue-50/50 dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900/60 text-center space-y-3">
           <h3 className="font-bold text-lg text-blue-950 dark:text-white">
-            Vous ne trouvez pas la réponse à votre question ?
+            {lang === 'fr'
+              ? 'Vous ne trouvez pas la réponse à votre question ?'
+              : 'Cannot find the answer to your question?'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-blue-200 max-w-md mx-auto">
-            Notre équipe est à votre disposition pour vous orienter et répondre à vos questions particulières.
+            {lang === 'fr'
+              ? 'Notre équipe est à votre disposition pour vous orienter et répondre à vos questions particulières.'
+              : 'Our team is available to assist you and answer any specific questions you may have.'}
           </p>
           <button
             onClick={() => onNavigate('contact')}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold transition-colors shadow-xs"
           >
-            <span>Poser une question via le formulaire de contact</span>
+            <span>
+              {lang === 'fr'
+                ? 'Poser une question via le formulaire de contact'
+                : 'Ask a question via our contact form'}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
