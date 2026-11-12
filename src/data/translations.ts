@@ -52,6 +52,8 @@ export const TRANSLATIONS = {
     },
     hero: {
       title: "Nous simplifions la facturation pour les entrepreneurs et les PME",
+      titleLine1: "Nous simplifions la facturation",
+      titleLine2: "pour les entrepreneurs et les PME",
       phrases: [
         "Facturer en quelques secondes.",
         "Suivre qui te doit de l'argent.",
@@ -560,6 +562,8 @@ export const TRANSLATIONS = {
     },
     hero: {
       title: "We simplify invoicing for entrepreneurs and SMBs",
+      titleLine1: "We simplify invoicing",
+      titleLine2: "for entrepreneurs and SMBs",
       phrases: [
         "Invoice in just seconds.",
         "Track who owes you money.",

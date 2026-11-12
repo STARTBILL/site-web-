@@ -708,7 +708,7 @@ export const FOOTER_CONTENT = {
     "STARTBILL — Startup technologique canadienne développant des solutions numériques pour simplifier la gestion financière des entrepreneurs.",
   contactLigne: "Contact : contact.startbill@gmail.com — Site : StartBill.ca",
   socials: [
-    { label: "Facebook StartBillapp", handle: "StartBillapp", href: "https://www.facebook.com/StartBillapp" },
+    { label: "Facebook StartBillapp", handle: "StartBillapp", href: "https://www.facebook.com/share/1KM999L26f/?mibextid=wwXIfr" },
     { label: "Instagram @startbill.app", handle: "@startbill.app", href: "https://instagram.com/startbill.app" },
     { label: "TikTok @startbillapp", handle: "@startbill_.app", href: "https://www.tiktok.com/@startbill_.app?_r=1&_t=ZS-9BIOJUwAm4D" },
   ],

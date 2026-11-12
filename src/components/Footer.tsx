@@ -120,7 +120,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal }) => {
             </h4>
             <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-blue-200">
               <a
-                href="https://www.facebook.com/StartBillapp"
+                href="https://www.facebook.com/share/1KM999L26f/?mibextid=wwXIfr"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-white transition-colors"

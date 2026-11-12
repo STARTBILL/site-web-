@@ -126,24 +126,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
               </div>
             </div>
 
-            {/* Main Title H1 */}
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-blue-950 dark:text-white leading-[1.14] text-balance">
-              {t.hero.title}
+            {/* Main Title H1 - Strictement sur 2 lignes comme annoté */}
+            <h1 className="text-3xl sm:text-5xl lg:text-[3.5rem] font-extrabold tracking-tight text-blue-950 dark:text-white leading-[1.18] max-w-4xl mx-auto">
+              <span className="block">{t.hero.titleLine1 || "Nous simplifions la facturation"}</span>
+              <span className="block mt-1 sm:mt-2">{t.hero.titleLine2 || "pour les entrepreneurs et les PME"}</span>
             </h1>
 
-            {/* Phrases animées (une idée par écran, qui défilent) */}
-            <div className="py-2">
-              <div className="inline-flex flex-col items-center justify-center min-h-[58px]">
+            {/* Phrases animées avec espace aéré au-dessus et en-dessous (flèches espace de l'annotation) */}
+            <div className="py-4 sm:py-6">
+              <div className="inline-flex flex-col items-center justify-center min-h-[64px]">
                 <div
                   key={heroPhraseIndex}
-                  className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-blue-600/10 dark:bg-blue-500/15 border border-blue-300/60 dark:border-blue-600/40 text-blue-800 dark:text-blue-200 text-lg sm:text-2xl font-bold tracking-tight transition-all"
+                  className="inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-blue-50/90 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100 text-lg sm:text-2xl font-bold tracking-tight shadow-xs transition-all"
                 >
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shrink-0" />
                   <span>{t.hero.phrases[heroPhraseIndex]}</span>
                 </div>
 
                 {/* Navigation dots */}
-                <div className="flex items-center gap-1.5 mt-2.5">
+                <div className="flex items-center gap-1.5 mt-3">
                   {t.hero.phrases.map((phrase, idx) => (
                     <button
                       key={idx}
@@ -169,16 +170,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
               {t.hero.targetAudience}
             </p>
 
-            {/* Preview & Waitlist Invitation Card (Replacing the old 5-day trial message) */}
-            <div className="max-w-2xl mx-auto p-4 rounded-2xl bg-white/90 dark:bg-[#0c1e3d]/90 border border-blue-200 dark:border-blue-800 shadow-sm text-sm text-blue-950 dark:text-blue-100 text-center leading-relaxed">
-              <span className="font-bold text-blue-600 dark:text-blue-400 block mb-1">
-                {t.common.earlyPreviewBadge}
-              </span>
-              <span>{t.common.earlyPreviewPitch}</span>
-            </div>
-
-            {/* Actions : Bouton principal, bouton secondaire & note sur l'accès pilote */}
-            <div className="pt-2 space-y-3">
+            {/* Actions : Bouton principal, bouton simulateur, bouton academy */}
+            <div className="pt-2">
               <div className="flex flex-wrap items-center justify-center gap-3.5">
                 <button
                   onClick={onOpenWaitlist}
@@ -188,17 +181,26 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
                 </button>
 
                 <button
-                  onClick={() => onNavigate('academy')}
-                  className="px-6 py-3.5 text-sm sm:text-base font-semibold text-blue-900 dark:text-blue-100 bg-white dark:bg-[#0c1e3d] hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-xl transition-colors whitespace-nowrap shadow-xs"
+                  onClick={() => {
+                    const sim = document.getElementById('simulateur');
+                    if (sim) {
+                      sim.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                      onNavigate('simulateur');
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-6 py-3.5 text-sm sm:text-base font-semibold text-blue-900 dark:text-blue-100 bg-white dark:bg-[#0c1e3d] hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-xl transition-colors whitespace-nowrap shadow-xs"
                 >
-                  {t.hero.ctaSecondary}
+                  <Calculator className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>{t.hero.ctaSimulator}</span>
                 </button>
-              </div>
 
-              {/* Note sur l'accès pilote sans carte de crédit */}
-              <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-blue-300 bg-blue-50/80 dark:bg-blue-950/60 px-3.5 py-1.5 rounded-full border border-blue-100 dark:border-blue-900">
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                <span>{t.common.pilotBadge}</span>
+                <button
+                  onClick={() => onNavigate('academy')}
+                  className="px-4 py-3.5 text-sm sm:text-base font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 hover:underline transition-colors whitespace-nowrap"
+                >
+                  {t.hero.ctaSecondary} →
+                </button>
               </div>
             </div>
           </div>
@@ -1003,7 +1005,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
                   </span>
                   <div className="flex flex-col gap-2 text-xs text-slate-600 dark:text-blue-200">
                     <a
-                      href="https://www.facebook.com/StartBillapp"
+                      href="https://www.facebook.com/share/1KM999L26f/?mibextid=wwXIfr"
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 hover:text-blue-600 dark:hover:text-white transition-colors"
