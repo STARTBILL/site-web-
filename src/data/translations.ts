@@ -67,6 +67,41 @@ export const TRANSLATIONS = {
       ctaSimulator: "Tester le simulateur",
       videoFallback: "Votre navigateur ne prend pas en charge la lecture de vidéos HTML5.",
     },
+    homeOverview: {
+      badge: "L'essentiel de STARTBILL",
+      title: "Une gestion financière claire, pensée pour votre quotidien",
+      subtitle: "Tout ce dont un entrepreneur ou une PME a besoin pour facturer, suivre ses dépenses et piloter ses encaissements — sans lourdeur.",
+      pillars: [
+        {
+          title: "Factures, devis et reçus",
+          desc: "Créez et envoyez des documents professionnels en quelques secondes avec calcul automatique des taxes.",
+          pageId: "fonctionnalites",
+          linkLabel: "Voir les fonctionnalités",
+        },
+        {
+          title: "Suivi clair des paiements",
+          desc: "Visualisez instantanément ce qui est payé, en attente ou en retard et gardez la maîtrise sur vos dépenses.",
+          pageId: "simulateur",
+          linkLabel: "Tester le simulateur",
+        },
+        {
+          title: "Adapté à votre marché",
+          desc: "Devises, fiscalité et moyens de paiement conçus pour le Canada, l'Afrique francophone et Haïti.",
+          pageId: "solutions",
+          linkLabel: "Explorer nos solutions",
+        },
+      ],
+      exploreTitle: "Explorer la plateforme",
+      exploreLinks: [
+        { pageId: "tarifs", title: "Tarifs régionaux", desc: "Forfaits Gratuit, Start et Pro en CAD, FCFA et HTG." },
+        { pageId: "a-propos", title: "À propos & Valeurs", desc: "Notre mission, notre vision et nos 3 principes fondateurs." },
+        { pageId: "academy", title: "STARTBILL Academy", desc: "Guides pratiques et modules pour maîtriser vos finances." },
+        { pageId: "faq", title: "Foire aux questions", desc: "Réponses sur le développement et la phase pilote." },
+      ],
+      ctaBannerTitle: "Découvrez STARTBILL en avant-première.",
+      ctaBannerDesc: "Rejoignez notre liste d'attente et soyez parmi les premiers entrepreneurs invités à tester notre plateforme de facturation et de gestion financière.",
+      ctaBannerBtn: "Rejoindre la liste d'attente",
+    },
     simulator: {
       badge: "Simulateur de facturation en direct",
       title: "Testez la simplicité de STARTBILL",
@@ -576,6 +611,41 @@ export const TRANSLATIONS = {
       ctaSecondary: "Discover STARTBILL Academy",
       ctaSimulator: "Test the simulator",
       videoFallback: "Your browser does not support HTML5 video playback.",
+    },
+    homeOverview: {
+      badge: "STARTBILL at a glance",
+      title: "Clear financial management built for your daily operations",
+      subtitle: "Everything an entrepreneur or SMB needs to invoice, track expenses, and stay on top of payments — without complexity.",
+      pillars: [
+        {
+          title: "Invoices, quotes & receipts",
+          desc: "Create and send structured business documents in seconds with automated local tax calculations.",
+          pageId: "fonctionnalites",
+          linkLabel: "View features",
+        },
+        {
+          title: "Clear payment tracking",
+          desc: "See what is paid, pending, or overdue at a glance and keep your business expenses organized.",
+          pageId: "simulateur",
+          linkLabel: "Try the simulator",
+        },
+        {
+          title: "Built for your region",
+          desc: "Currencies, tax systems, and payment workflows tailored for Canada, Francophone Africa, and Haiti.",
+          pageId: "solutions",
+          linkLabel: "Explore solutions",
+        },
+      ],
+      exploreTitle: "Explore the platform",
+      exploreLinks: [
+        { pageId: "tarifs", title: "Regional Pricing", desc: "Free, Start, and Pro plans in CAD, FCFA, and HTG." },
+        { pageId: "a-propos", title: "About & Values", desc: "Our mission, vision, and 3 core principles." },
+        { pageId: "academy", title: "STARTBILL Academy", desc: "Practical guides and modules to master your numbers." },
+        { pageId: "faq", title: "FAQ", desc: "Answers on availability, pilot phases, and coverage." },
+      ],
+      ctaBannerTitle: "Discover STARTBILL in early preview.",
+      ctaBannerDesc: "Join our waitlist and be among the first entrepreneurs invited to test our invoicing and financial management platform.",
+      ctaBannerBtn: "Join the waitlist",
     },
     simulator: {
       badge: "Live Invoicing Simulator",
