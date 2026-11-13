@@ -66,6 +66,8 @@ export const TRANSLATIONS = {
       ctaSecondary: "Découvrir STARTBILL Academy",
       ctaSimulator: "Tester le simulateur",
       videoFallback: "Votre navigateur ne prend pas en charge la lecture de vidéos HTML5.",
+      marqueeText:
+        "Nous simplifions la facturation pour les entrepreneurs et les PME. • Suis tes revenus et dépenses en temps réel. • Prépare ta saison des impôts sans stress. • Entreprends sereinement au Canada.",
     },
     homeOverview: {
       badge: "L'essentiel de STARTBILL",
@@ -611,6 +613,8 @@ export const TRANSLATIONS = {
       ctaSecondary: "Discover STARTBILL Academy",
       ctaSimulator: "Test the simulator",
       videoFallback: "Your browser does not support HTML5 video playback.",
+      marqueeText:
+        "We simplify invoicing for entrepreneurs and SMBs. • Track your revenue and expenses in real time. • Prepare for tax season stress-free. • Grow your business with peace of mind in Canada.",
     },
     homeOverview: {
       badge: "STARTBILL at a glance",

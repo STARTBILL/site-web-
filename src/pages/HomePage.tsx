@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
+import { MarqueeBanner } from '../components/MarqueeBanner';
 
 interface HomePageProps {
   onNavigate: (pageId: string) => void;
@@ -166,6 +167,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
                 {t.hero.videoFallback}
               </video>
             </div>
+          </div>
+
+          {/* Bandeau défilant horizontal (Marquee) juste sous la vidéo */}
+          <div className="mt-8 max-w-5xl mx-auto w-full">
+            <MarqueeBanner text={t.hero.marqueeText} />
           </div>
         </div>
       </section>
