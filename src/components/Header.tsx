@@ -259,16 +259,27 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   )
                 ) : (
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenAuth('login');
-                    }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>{lang === 'fr' ? 'Connexion / Inscription' : 'Sign in / Sign up'}</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenAuth('login');
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>{lang === 'fr' ? 'Connexion' : 'Sign in'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onOpenAuth('signup');
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-950 dark:text-white underline"
+                    >
+                      <span>{lang === 'fr' ? 'Inscription' : 'Sign up'}</span>
+                    </button>
+                  </div>
                 )
               )}
             </div>

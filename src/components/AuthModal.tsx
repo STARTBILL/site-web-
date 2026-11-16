@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, User, MapPin, Briefcase, LogIn, UserPlus, AlertCircle } from 'lucide-react';
+import {
+  X,
+  Mail,
+  User,
+  MapPin,
+  Briefcase,
+  LogIn,
+  UserPlus,
+  AlertCircle,
+  Lock,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import {
   ACTIVE_REGIONS,
   ALL_REGIONS,
@@ -7,6 +19,7 @@ import {
   RegionCode,
 } from '../config/regions';
 import { useLanguage } from '../context/LanguageContext';
+import { submitUserLogin, submitUserSignup } from '../utils/authClient';
 import type { AuthUser } from './RegionBlockedScreen';
 
 interface AuthModalProps {
@@ -28,6 +41,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [profile, setProfile] = useState('autonome');
   const [region, setRegion] = useState<RegionCode>(DEFAULT_REGION_CODE);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,45 +52,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (isOpen) {
       setTab(initialTab);
       setError(null);
+      setPassword('');
+      setShowPassword(false);
     }
   }, [isOpen, initialTab]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  // Filtrage strict par Feature Flag : seules les régions dans ACTIVE_REGIONS sont affichées au choix d'inscription
-  const selectableRegions = ALL_REGIONS.filter((r) => ACTIVE_REGIONS.includes(r.code));
+  const switchTab = (nextTab: 'login' | 'signup') => {
+    setTab(nextTab);
+    setError(null);
+    setPassword('');
+    setShowPassword(false);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await response.json();
-      if (data.requiresAdminAuth && onRouteToAdmin) {
+      const result = await submitUserLogin({ email, password });
+      if (result.requiresAdminAuth && onRouteToAdmin) {
         onClose();
         onRouteToAdmin();
         return;
       }
-      if (!response.ok || !data.user) {
+      if (!result.ok || !result.user) {
         setError(
-          data.error ||
+          result.error ||
             (lang === 'fr' ? 'Impossible de se connecter.' : 'Unable to sign in.')
         );
         return;
       }
-      onAuthSuccess(data.user);
+      onAuthSuccess(result.user);
       onClose();
-    } catch {
-      setError(
-        lang === 'fr'
-          ? 'Erreur réseau lors de la connexion.'
-          : 'Network error during login.'
-      );
     } finally {
       setIsLoading(false);
     }
@@ -86,51 +105,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName,
-          email,
-          profile,
-          region,
-        }),
+      const result = await submitUserSignup({
+        fullName,
+        email,
+        password,
+        profile,
+        region,
       });
-      const data = await response.json();
-      if (!response.ok || !data.user) {
+      if (!result.ok || !result.user) {
         setError(
-          data.error ||
+          result.error ||
             "StartBill n'est pas encore disponible dans votre région."
         );
         return;
       }
-      onAuthSuccess(data.user);
+      onAuthSuccess(result.user);
       onClose();
-    } catch {
-      setError(
-        lang === 'fr'
-          ? "Erreur réseau lors de l'inscription."
-          : 'Network error during sign-up.'
-      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleQuickTestAccount = (testEmail: string) => {
+  const handleQuickTestAccount = async (testEmail: string) => {
     setTab('login');
     setError(null);
     setEmail(testEmail);
+    setPassword('');
+    setIsLoading(true);
+    try {
+      const result = await submitUserLogin({
+        email: testEmail,
+        isDemoQuickLogin: true,
+      });
+      if (result.ok && result.user) {
+        onAuthSuccess(result.user);
+        onClose();
+        return;
+      }
+      setError(result.error || 'Connexion test indisponible.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div
       role="dialog"
       aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/60 backdrop-blur-xs"
     >
-      <div className="relative w-full max-w-md bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900 rounded-2xl p-6 sm:p-8 shadow-2xl">
+      <div className="relative w-full max-w-md bg-white dark:bg-[#0c1e3d] border border-blue-100 dark:border-blue-900 rounded-2xl p-6 sm:p-8 shadow-2xl max-h-[92vh] overflow-y-auto">
         <button
+          type="button"
           onClick={onClose}
           aria-label={lang === 'fr' ? 'Fermer' : 'Close'}
           className="absolute top-5 right-5 text-slate-400 hover:text-blue-950 dark:hover:text-white p-1 rounded-lg transition-colors"
@@ -138,14 +167,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Tabs */}
+        {/* Onglets Connexion / Inscription */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-blue-50 dark:bg-blue-950/70 border border-blue-100 dark:border-blue-900 mb-6 mr-8">
           <button
             type="button"
-            onClick={() => {
-              setTab('login');
-              setError(null);
-            }}
+            onClick={() => switchTab('login')}
             className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
               tab === 'login'
                 ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
@@ -157,10 +183,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => {
-              setTab('signup');
-              setError(null);
-            }}
+            onClick={() => switchTab('signup')}
             className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
               tab === 'signup'
                 ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
@@ -187,8 +210,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </h3>
               <p className="text-xs text-slate-600 dark:text-blue-200 mt-1">
                 {lang === 'fr'
-                  ? 'Connectez-vous avec votre courriel ou testez un profil régional.'
-                  : 'Sign in with your email or test a regional profile.'}
+                  ? 'Connectez-vous avec votre courriel et votre mot de passe.'
+                  : 'Sign in with your email and password.'}
               </p>
             </div>
 
@@ -203,11 +226,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="demo@startbill.ca"
+                  placeholder="nom@entreprise.ca"
                   className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                {lang === 'fr' ? 'Mot de passe *' : 'Password *'}
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required={email.trim().toLowerCase() !== 'contact.startbill@gmail.com'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-9 pr-10 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 dark:hover:text-blue-300"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
@@ -225,14 +277,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 : 'Sign in'}
             </button>
 
-            {/* Comptes de test pour vérifier le verrouillage CA vs blocage AF/HT */}
+            <p className="text-center text-xs text-slate-600 dark:text-blue-200">
+              {lang === 'fr' ? 'Pas encore de compte ?' : "Don't have an account yet?"}{' '}
+              <button
+                type="button"
+                onClick={() => switchTab('signup')}
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {lang === 'fr' ? 'Créer un compte Canada' : 'Create an account'}
+              </button>
+            </p>
+
+            {/* Comptes de test pour vérifier le verrouillage CA vs blocage AF/HT en 1 clic */}
             <div className="pt-3 border-t border-blue-100 dark:border-blue-900/60 space-y-2">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-blue-300 block">
-                {lang === 'fr' ? 'Comptes de test MVP :' : 'MVP Test Accounts:'}
+                {lang === 'fr' ? 'Accès rapide (comptes de test MVP) :' : 'Quick access (MVP test accounts):'}
               </span>
               <div className="grid grid-cols-1 gap-1.5">
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => handleQuickTestAccount('demo@startbill.ca')}
                   className="text-left px-3 py-1.5 rounded-lg bg-blue-50/60 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs text-blue-900 dark:text-blue-100 flex items-center justify-between transition-colors"
                 >
@@ -243,6 +307,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => handleQuickTestAccount('test-af@startbill.ca')}
                   className="text-left px-3 py-1.5 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-xs text-amber-950 dark:text-amber-200 flex items-center justify-between transition-colors"
                 >
@@ -253,6 +318,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => handleQuickTestAccount('test-ht@startbill.ca')}
                   className="text-left px-3 py-1.5 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-xs text-amber-950 dark:text-amber-200 flex items-center justify-between transition-colors"
                 >
@@ -288,6 +354,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
+                  autoComplete="name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Sophie Tremblay"
@@ -307,11 +374,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nom@entreprise.ca"
                   className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                {lang === 'fr'
+                  ? 'Mot de passe * (minimum 8 caractères)'
+                  : 'Password * (minimum 8 characters)'}
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimum 8 caractères"
+                  className="w-full pl-9 pr-10 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 dark:hover:text-blue-300"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
@@ -353,11 +452,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={(e) => setRegion(e.target.value as RegionCode)}
                     className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                   >
-                    {selectableRegions.map((r) => (
-                      <option key={r.code} value={r.code}>
-                        {r.flag} {lang === 'fr' ? r.label : r.labelEn} ({r.devise})
-                      </option>
-                    ))}
+                    {ALL_REGIONS.map((r) => {
+                      const active = ACTIVE_REGIONS.includes(r.code);
+                      return (
+                        <option key={r.code} value={r.code} disabled={!active}>
+                          {r.flag} {lang === 'fr' ? r.label : r.labelEn} ({r.devise})
+                          {!active
+                            ? lang === 'fr'
+                              ? ' — Bientôt disponible'
+                              : ' — Coming soon'
+                            : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -376,6 +483,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 ? 'Créer mon compte Canada'
                 : 'Create Canada account'}
             </button>
+
+            <p className="text-center text-xs text-slate-600 dark:text-blue-200">
+              {lang === 'fr' ? 'Déjà inscrit ?' : 'Already have an account?'}{' '}
+              <button
+                type="button"
+                onClick={() => switchTab('login')}
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {lang === 'fr' ? 'Se connecter' : 'Sign in'}
+              </button>
+            </p>
           </form>
         )}
       </div>

@@ -3,6 +3,7 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
 import {
   ACTIVE_REGIONS,
@@ -87,20 +88,27 @@ async function startServer() {
     });
   });
 
-  // Inscription (Sign-up) verrouillée par le middleware requireActiveRegion
-  app.post('/api/auth/signup', requireActiveRegion, (req: Request, res: Response) => {
+  // Inscription (Sign-up) verrouillée par le middleware requireActiveRegion + mot de passe haché bcrypt
+  app.post('/api/auth/signup', requireActiveRegion, async (req: Request, res: Response) => {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const fullName = String(req.body?.fullName || '').trim();
+    const password = String(req.body?.password || '');
     const profile = String(req.body?.profile || 'autonome').trim();
     const region = (req.body?.normalizedRegion || DEFAULT_REGION) as RegionCode;
 
-    if (!email || !email.includes('@')) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       res.status(400).json({ error: 'Veuillez renseigner une adresse courriel valide.' });
       return;
     }
     if (!fullName) {
       res.status(400).json({ error: 'Veuillez indiquer votre nom complet ou entreprise.' });
+      return;
+    }
+    if (password.length < 8) {
+      res.status(400).json({
+        error: 'Le mot de passe doit contenir au moins 8 caractères.',
+      });
       return;
     }
     if (email === SUPER_ADMIN_EMAIL) {
@@ -110,8 +118,20 @@ async function startServer() {
       return;
     }
 
+    const existingIdx = db.users.findIndex((u) => u.email === email);
+    const existingUser = existingIdx >= 0 ? db.users[existingIdx] : null;
+    if (existingUser && (existingUser.emailVerified || existingUser.passwordHash)) {
+      res.status(409).json({
+        error: 'Un compte existe déjà avec cette adresse courriel. Veuillez vous connecter.',
+      });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const nowIso = new Date().toISOString();
+
     const user: DbUser = {
-      id: `usr-${Date.now()}`,
+      id: existingUser?.id || `usr-${Date.now()}`,
       fullName,
       email,
       role: 'user',
@@ -121,12 +141,13 @@ async function startServer() {
       profile,
       currency: DEFAULT_CURRENCY,
       emailVerified: true,
-      createdAt: new Date().toISOString(),
+      passwordHash,
+      createdAt: existingUser?.createdAt || nowIso,
+      lastLoginAt: nowIso,
     };
 
-    const existingIdx = db.users.findIndex((u) => u.email === email);
     if (existingIdx >= 0) {
-      db.users[existingIdx] = { ...db.users[existingIdx], ...user, id: db.users[existingIdx].id };
+      db.users[existingIdx] = user;
     } else {
       db.users.push(user);
     }
@@ -180,10 +201,11 @@ async function startServer() {
   });
 
   // Connexion standard utilisateur (le compte Super Admin doit utiliser /api/auth/admin/login avec mot de passe + 2FA)
-  app.post('/api/auth/login', (req: Request, res: Response) => {
+  app.post('/api/auth/login', async (req: Request, res: Response) => {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
-    const requestedRegion = normalizeRegionCode(req.body?.region);
+    const password = String(req.body?.password || '');
+    const demoQuickLogin = Boolean(req.body?.demoQuickLogin);
 
     if (!email || !email.includes('@')) {
       res.status(400).json({ error: 'Veuillez saisir une adresse courriel valide.' });
@@ -200,34 +222,15 @@ async function startServer() {
       return;
     }
 
-    let user = db.users.find((u) => u.email === email);
+    const user = db.users.find((u) => u.email === email);
 
     if (!user) {
-      const inferredRegion: RegionCode = requestedRegion
-        ? requestedRegion
-        : req.body?.region
-        ? resolveRegionOrFallback(req.body.region)
-        : email.includes('-af')
-        ? 'AF'
-        : email.includes('-ht')
-        ? 'HT'
-        : DEFAULT_REGION;
-      user = {
-        id: `usr-${Date.now()}`,
-        fullName: email.split('@')[0],
-        email,
-        role: 'user',
-        region: inferredRegion,
-        plan: 'Free',
-        status: 'actif',
-        profile: 'autonome',
-        currency:
-          inferredRegion === 'CA' ? 'CAD' : inferredRegion === 'AF' ? 'XOF' : 'HTG',
-        emailVerified: true,
-        createdAt: new Date().toISOString(),
-      };
-      db.users.push(user);
-      saveDb(db);
+      res.status(401).json({
+        success: false,
+        error:
+          "Aucun compte trouvé avec cette adresse courriel. Créez un compte via l'onglet Inscription.",
+      });
+      return;
     }
 
     if (user.status === 'suspendu') {
@@ -237,6 +240,40 @@ async function startServer() {
       });
       return;
     }
+
+    const isDemoAccount =
+      email === 'demo@startbill.ca' ||
+      email === 'test-af@startbill.ca' ||
+      email === 'test-ht@startbill.ca';
+
+    if (user.passwordHash) {
+      if (!password) {
+        res.status(401).json({
+          success: false,
+          error: 'Veuillez saisir votre mot de passe.',
+        });
+        return;
+      }
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        res.status(401).json({
+          success: false,
+          error: 'Adresse courriel ou mot de passe incorrect.',
+        });
+        return;
+      }
+    } else if (!isDemoAccount && !demoQuickLogin) {
+      if (!password) {
+        res.status(401).json({
+          success: false,
+          error: 'Veuillez saisir votre mot de passe.',
+        });
+        return;
+      }
+    }
+
+    user.lastLoginAt = new Date().toISOString();
+    saveDb(db);
 
     const regionActive = isRegionActive(user.region);
 

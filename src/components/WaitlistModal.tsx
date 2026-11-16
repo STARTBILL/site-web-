@@ -8,6 +8,8 @@ import {
   IS_MULTI_REGION,
 } from '../config/regions';
 
+import { submitWaitlistEntry } from '../utils/authClient';
+
 interface WaitlistModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -44,37 +46,12 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "StartBill n'est pas encore disponible dans votre région.");
-        setIsSubmitting(false);
+      const result = await submitWaitlistEntry(formData);
+      if (!result.ok) {
+        setError(result.error || "StartBill n'est pas encore disponible dans votre région.");
         return;
       }
-
-      try {
-        const existing = JSON.parse(localStorage.getItem('startbill_waitlist') || '[]');
-        existing.push({
-          ...formData,
-          date: new Date().toISOString(),
-        });
-        localStorage.setItem('startbill_waitlist', JSON.stringify(existing));
-      } catch {
-        // Fallback
-      }
-
       setIsSubmitted(true);
-    } catch {
-      setError(
-        lang === 'fr'
-          ? 'Impossible de contacter le serveur. Veuillez réessayer.'
-          : 'Unable to reach server. Please try again.'
-      );
     } finally {
       setIsSubmitting(false);
     }
