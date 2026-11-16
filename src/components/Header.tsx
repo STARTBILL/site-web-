@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Menu, X, Sun, Moon, LogIn, LogOut, UserCheck } from 'lucide-react';
+import { Menu, X, Sun, Moon, LogIn, LogOut, UserCheck, Shield } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
 import { ACTIVE_REGIONS, ALL_REGIONS, IS_MULTI_REGION } from '../config/regions';
 import { RegionBadge } from './RegionBadge';
 import type { AuthUser } from './RegionBlockedScreen';
+import { useSuperAdmin } from '../hooks/useSuperAdmin';
 
 interface HeaderProps {
   activeSection: string;
@@ -15,6 +16,7 @@ interface HeaderProps {
   currentUser?: AuthUser | null;
   onOpenAuth?: (tab?: 'login' | 'signup') => void;
   onLogout?: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,10 +28,12 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenAuth,
   onLogout,
+  onOpenAdmin,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { lang, setLang } = useLanguage();
   const t = TRANSLATIONS[lang];
+  const { isSuperAdmin } = useSuperAdmin(currentUser);
 
   const navLinks = [
     { id: 'accueil', label: t.nav.accueil },
@@ -166,6 +170,17 @@ export const Header: React.FC<HeaderProps> = ({
             )
           )}
 
+          {/* Bouton Administration : visible EXCLUSIVEMENT pour contact.startbill@gmail.com (super_admin) */}
+          {isSuperAdmin && onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-[#0A2540] hover:bg-blue-900 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            >
+              <Shield className="w-3.5 h-3.5 text-blue-300" />
+              <span>Administration</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenWaitlist}
             className="hidden sm:inline-flex items-center px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-xs active:scale-[0.98]"
@@ -257,6 +272,18 @@ export const Header: React.FC<HeaderProps> = ({
                 )
               )}
             </div>
+            {isSuperAdmin && onOpenAdmin && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAdmin();
+                }}
+                className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-semibold text-white bg-[#0A2540] hover:bg-blue-900 rounded-lg transition-colors"
+              >
+                <Shield className="w-3.5 h-3.5 text-blue-300" />
+                <span>Administration</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setMobileMenuOpen(false);

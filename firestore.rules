@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // =========================================================================
+    // Fonctions RBAC strictes STARTBILL (LPRPDE & Protection Super Admin)
+    // =========================================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated()
+        && request.auth.token.email == 'contact.startbill@gmail.com'
+        && request.auth.token.email_verified == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    function isProtectedSuperAdminDoc(userData) {
+      return userData.email == 'contact.startbill@gmail.com'
+        || userData.role == 'super_admin'
+        || userData.immutable == true;
+    }
+
+    // Collection Utilisateurs
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+
+      // L'utilisateur peut créer son propre profil standard (role != super_admin)
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'user'
+        && request.resource.data.region in ['CA'];
+
+      // Mise à jour par le propriétaire (sans élévation de privilèges) ou par le Super Admin
+      allow update: if isSuperAdmin()
+        || (isAuthenticated()
+            && request.auth.uid == userId
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.email == resource.data.email);
+
+      // INTERDICTION ABSOLUE de supprimer le compte Super Admin (même par lui-même via l'UI)
+      allow delete: if isSuperAdmin() && !isProtectedSuperAdminDoc(resource.data);
+    }
+
+    // Toutes les collections d'administration (/admin/*)
+    match /admin/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // Journaux d'audit : lecture/création par Super Admin uniquement, jamais modifiables ni supprimables
+    match /audit_logs/{logId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
+    // Paramètres plateforme & CMS
+    match /platform_settings/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /cms_content/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Factures et abonnements isolés par propriétaire ou Super Admin
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSuperAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isSuperAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSuperAdmin();
+      allow delete: if false;
+    }
+  }
+}

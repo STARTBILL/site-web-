@@ -13,9 +13,20 @@ import { MarqueeBanner } from '../components/MarqueeBanner';
 interface HomePageProps {
   onNavigate: (pageId: string) => void;
   onOpenWaitlist: () => void;
+  cmsOverrides?: {
+    heroTitleLine1?: string;
+    heroTitleLine2?: string;
+    heroSubtitle?: string;
+    videoUrl?: string;
+    marqueeText?: string;
+  } | null;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }) => {
+export const HomePage: React.FC<HomePageProps> = ({
+  onNavigate,
+  onOpenWaitlist,
+  cmsOverrides,
+}) => {
   const { lang } = useLanguage();
   const t = TRANSLATIONS[lang];
 
@@ -58,8 +69,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
 
             {/* Main Title H1 - Strictement sur 2 lignes comme annoté */}
             <h1 className="text-3xl sm:text-5xl lg:text-[3.5rem] font-extrabold tracking-tight text-blue-950 dark:text-white leading-[1.18] max-w-4xl mx-auto">
-              <span className="block">{t.hero.titleLine1 || "Nous simplifions la facturation"}</span>
-              <span className="block mt-1 sm:mt-2">{t.hero.titleLine2 || "pour les entrepreneurs et les PME"}</span>
+              <span className="block">
+                {(lang === 'fr' && cmsOverrides?.heroTitleLine1) ||
+                  t.hero.titleLine1 ||
+                  'Nous simplifions la facturation'}
+              </span>
+              <span className="block mt-1 sm:mt-2">
+                {(lang === 'fr' && cmsOverrides?.heroTitleLine2) ||
+                  t.hero.titleLine2 ||
+                  'pour les entrepreneurs et les PME'}
+              </span>
             </h1>
 
             {/* Phrases animées avec espace aéré au-dessus et en-dessous */}
@@ -93,7 +112,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
 
             {/* Sous-titre */}
             <p className="text-base sm:text-xl text-slate-700 dark:text-blue-100 font-medium leading-relaxed max-w-2xl mx-auto">
-              {t.hero.subTitle}
+              {(lang === 'fr' && cmsOverrides?.heroSubtitle) || t.hero.subTitle}
             </p>
 
             <p className="text-xs sm:text-sm text-slate-500 dark:text-blue-300 max-w-xl mx-auto">
@@ -156,7 +175,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
                   aspectRatio: '16 / 9',
                 }}
               >
-                <source src="/assets/videos/startbill-hero.mp4" type="video/mp4" />
+                <source
+                  src={cmsOverrides?.videoUrl || '/assets/videos/startbill-hero.mp4'}
+                  type="video/mp4"
+                />
                 <track
                   kind="subtitles"
                   src="/assets/videos/subtitles-fr.vtt"
@@ -171,7 +193,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenWaitlist }
 
           {/* Bandeau défilant horizontal (Marquee) juste sous la vidéo */}
           <div className="mt-8 max-w-5xl mx-auto w-full">
-            <MarqueeBanner text={t.hero.marqueeText} />
+            <MarqueeBanner
+              text={(lang === 'fr' && cmsOverrides?.marqueeText) || t.hero.marqueeText}
+            />
           </div>
         </div>
       </section>

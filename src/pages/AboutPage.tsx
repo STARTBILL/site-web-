@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, Target, Compass } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
+import { TeamSection } from '../components/TeamSection';
 
 interface AboutPageProps {
   onNavigate: (pageId: string) => void;
@@ -80,6 +81,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate, onOpenWaitlist
             </p>
           </div>
         </div>
+
+        {/* Founders Team Section */}
+        <TeamSection />
 
         {/* 3 Core Values (Short Version) */}
         <div className="space-y-8">

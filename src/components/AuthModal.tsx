@@ -14,6 +14,7 @@ interface AuthModalProps {
   initialTab?: 'login' | 'signup';
   onClose: () => void;
   onAuthSuccess: (user: AuthUser) => void;
+  onRouteToAdmin?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -21,6 +22,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialTab = 'login',
   onClose,
   onAuthSuccess,
+  onRouteToAdmin,
 }) => {
   const { lang } = useLanguage();
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
@@ -54,6 +56,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         body: JSON.stringify({ email }),
       });
       const data = await response.json();
+      if (data.requiresAdminAuth && onRouteToAdmin) {
+        onClose();
+        onRouteToAdmin();
+        return;
+      }
       if (!response.ok || !data.user) {
         setError(
           data.error ||
