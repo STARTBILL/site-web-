@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, Check, MapPin, Building2, User, Store } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
+import { ACTIVE_REGIONS, RegionCode } from '../config/regions';
 
 interface SolutionsPageProps {
   onNavigate: (pageId: string) => void;
@@ -110,15 +111,20 @@ export const SolutionsPage: React.FC<SolutionsPageProps> = ({ onNavigate, onOpen
               </p>
 
               <div className="space-y-3 pt-2">
-                {solutions.zones.map((zone, i) => (
-                  <div key={i} className="flex items-start gap-3 text-xs sm:text-sm">
-                    <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="text-blue-950 dark:text-white">{zone.nom} : </strong>
-                      <span className="text-slate-600 dark:text-blue-200">{zone.detail}</span>
+                {solutions.zones
+                  .filter((_, idx) => {
+                    const zoneCodes: RegionCode[] = ['CA', 'AF', 'HT'];
+                    return ACTIVE_REGIONS.includes(zoneCodes[idx] ?? 'CA');
+                  })
+                  .map((zone, i) => (
+                    <div key={i} className="flex items-start gap-3 text-xs sm:text-sm">
+                      <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-blue-950 dark:text-white">{zone.nom} : </strong>
+                        <span className="text-slate-600 dark:text-blue-200">{zone.detail}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 

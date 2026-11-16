@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Check, ShieldCheck, HelpCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
+import {
+  ACTIVE_REGIONS,
+  DEFAULT_REGION_CONFIG,
+  IS_MULTI_REGION,
+  RegionKey,
+  isRegionActive,
+} from '../config/regions';
+import { RegionBadge } from '../components/RegionBadge';
 
 interface PricingPageProps {
   onNavigate: (pageId: string) => void;
@@ -12,10 +20,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
   const { lang } = useLanguage();
   const t = TRANSLATIONS[lang];
 
-  const [pricingRegion, setPricingRegion] = useState<'canada' | 'afrique' | 'haiti'>('canada');
+  const [pricingRegion, setPricingRegion] = useState<RegionKey>(DEFAULT_REGION_CONFIG.key);
   const [isAnnualPricing, setIsAnnualPricing] = useState(false);
 
-  const currentRegionPricing = t.pricing.regions[pricingRegion];
+  const effectiveRegion: RegionKey = isRegionActive(pricingRegion)
+    ? pricingRegion
+    : DEFAULT_REGION_CONFIG.key;
+  const currentRegionPricing = t.pricing.regions[effectiveRegion];
 
   return (
     <div className="py-12 lg:py-16">
@@ -55,40 +66,50 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onOpenWait
           </div>
         </div>
 
-        {/* Controls: Region Selector + Monthly/Annual Toggle */}
+        {/* Controls: Region Badge / Multi-Region Selector + Monthly/Annual Toggle */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <div className="inline-flex p-1 rounded-xl bg-blue-100/60 dark:bg-blue-950 border border-blue-200 dark:border-blue-900">
-            <button
-              onClick={() => setPricingRegion('canada')}
-              className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-                pricingRegion === 'canada'
-                  ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
-              }`}
-            >
-              🇨🇦 Canada ($ CAD)
-            </button>
-            <button
-              onClick={() => setPricingRegion('afrique')}
-              className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-                pricingRegion === 'afrique'
-                  ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
-              }`}
-            >
-              🌍 Afrique francophone (FCFA)
-            </button>
-            <button
-              onClick={() => setPricingRegion('haiti')}
-              className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-                pricingRegion === 'haiti'
-                  ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
-              }`}
-            >
-              🇭🇹 Haïti (HTG)
-            </button>
-          </div>
+          {IS_MULTI_REGION ? (
+            <div className="inline-flex p-1 rounded-xl bg-blue-100/60 dark:bg-blue-950 border border-blue-200 dark:border-blue-900">
+              {ACTIVE_REGIONS.includes('CA') && (
+                <button
+                  onClick={() => setPricingRegion('canada')}
+                  className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                    effectiveRegion === 'canada'
+                      ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
+                  }`}
+                >
+                  🇨🇦 Canada ($ CAD)
+                </button>
+              )}
+              {ACTIVE_REGIONS.includes('AF') && (
+                <button
+                  onClick={() => setPricingRegion('afrique')}
+                  className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                    effectiveRegion === 'afrique'
+                      ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
+                  }`}
+                >
+                  🌍 Afrique francophone (FCFA)
+                </button>
+              )}
+              {ACTIVE_REGIONS.includes('HT') && (
+                <button
+                  onClick={() => setPricingRegion('haiti')}
+                  className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                    effectiveRegion === 'haiti'
+                      ? 'bg-white dark:bg-blue-600 text-blue-950 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-blue-200 hover:text-blue-950 dark:hover:text-white'
+                  }`}
+                >
+                  🇭🇹 Haïti (HTG)
+                </button>
+              )}
+            </div>
+          ) : (
+            <RegionBadge showCurrency className="px-4 py-2 text-xs sm:text-sm" />
+          )}
 
           <div className="inline-flex items-center gap-2 p-1 px-3 rounded-xl bg-white dark:bg-[#0c1e3d] border border-blue-200 dark:border-blue-900 shadow-2xs">
             <button

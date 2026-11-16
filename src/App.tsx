@@ -7,10 +7,13 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { WaitlistModal } from './components/WaitlistModal';
+import { AuthModal } from './components/AuthModal';
+import { RegionBlockedScreen, AuthUser } from './components/RegionBlockedScreen';
 import { ArticleModal } from './components/ArticleModal';
 import { LegalModal, LegalDocType } from './components/LegalModal';
 import { Article } from './data/content';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { isRegionActive } from './config/regions';
 
 // Dedicated Pages
 import { HomePage } from './pages/HomePage';
@@ -54,6 +57,17 @@ function MainApp() {
   const [currentPage, setCurrentPage] = useState<PageId>(getPageFromHash);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem('startbill_user');
+      return saved ? (JSON.parse(saved) as AuthUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [selectedLegal, setSelectedLegal] = useState<LegalDocType | null>(null);
   const [contactSubject, setContactSubject] = useState<string>('Information générale');
@@ -96,6 +110,34 @@ function MainApp() {
     handleNavigate('contact');
   };
 
+  const handleOpenAuth = (tab: 'login' | 'signup' = 'login') => {
+    setAuthTab(tab);
+    setIsAuthOpen(true);
+  };
+
+  const handleAuthSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem('startbill_user', JSON.stringify(user));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('startbill_user');
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  // Blocage à la Connexion (Login) : si l'utilisateur appartient à une région inactive (ex: AF ou HT)
+  if (currentUser && !isRegionActive(currentUser.region)) {
+    return <RegionBlockedScreen user={currentUser} onLogout={handleLogout} />;
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#071328] text-slate-900 dark:text-blue-50 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 transition-colors">
       {/* 3-Zone Navigation Header with Active Page indicator & Language Switcher */}
@@ -105,6 +147,9 @@ function MainApp() {
         onOpenWaitlist={() => setIsWaitlistOpen(true)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        currentUser={currentUser}
+        onOpenAuth={handleOpenAuth}
+        onLogout={handleLogout}
       />
 
       {/* Dynamic Multi-Page Router View */}
@@ -194,6 +239,14 @@ function MainApp() {
       <WaitlistModal
         isOpen={isWaitlistOpen}
         onClose={() => setIsWaitlistOpen(false)}
+      />
+
+      {/* Auth Modal (Login / Sign-up verrouillé Canada) */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        initialTab={authTab}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
       />
 
       {/* Blog Article Reader Modal */}

@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
 import { FileText, Users, Receipt, TrendingUp, Plus, Trash2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import {
+  ACTIVE_REGIONS,
+  CurrencyCode,
+  DEFAULT_CURRENCY,
+  IS_MULTI_REGION,
+  RegionCode,
+} from '../config/regions';
+import { RegionBadge } from './RegionBadge';
 
-type CurrencyMode = 'CAD' | 'XOF' | 'HTG';
+type CurrencyMode = CurrencyCode;
+
+const CURRENCY_REGION_MAP: Record<CurrencyMode, RegionCode> = {
+  CAD: 'CA',
+  XOF: 'AF',
+  HTG: 'HT',
+};
 
 export const InteractiveFeatureDemo: React.FC = () => {
   const { lang } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>('facturation');
-  const [currency, setCurrency] = useState<CurrencyMode>('CAD');
+  const [currency, setCurrency] = useState<CurrencyMode>(DEFAULT_CURRENCY);
 
   // Facturation simulator state
   const [items, setItems] = useState([
@@ -49,10 +63,11 @@ export const InteractiveFeatureDemo: React.FC = () => {
     },
   };
 
-  const currentCfg = currencyConfig[currency];
+  const activeCurrency: CurrencyMode = IS_MULTI_REGION ? currency : DEFAULT_CURRENCY;
+  const currentCfg = currencyConfig[activeCurrency];
 
   const subtotal = items.reduce(
-    (sum, item) => sum + item.qty * item.rate * (currency === 'CAD' ? 1 : currentCfg.rateMultiplier / 10),
+    (sum, item) => sum + item.qty * item.rate * (activeCurrency === 'CAD' ? 1 : currentCfg.rateMultiplier / 10),
     0
   );
   const taxAmount = subtotal * currentCfg.taxRate;
@@ -97,25 +112,46 @@ export const InteractiveFeatureDemo: React.FC = () => {
           </p>
         </div>
 
-        {/* Currency Switcher */}
-        <div className="flex items-center gap-1.5 p-1 bg-blue-50 dark:bg-blue-950/60 rounded-lg shrink-0 border border-blue-100 dark:border-blue-900/50">
-          <span className="text-xs font-medium text-blue-900/70 dark:text-blue-300 px-2">
-            {lang === 'fr' ? 'Région / Devise :' : 'Region / Currency:'}
-          </span>
-          {(['CAD', 'XOF', 'HTG'] as CurrencyMode[]).map((c) => (
+        {/* Currency Switcher : désactivé tant que l'application est mono-région (CAD forcé) */}
+        {IS_MULTI_REGION ? (
+          <div className="flex items-center gap-1.5 p-1 bg-blue-50 dark:bg-blue-950/60 rounded-lg shrink-0 border border-blue-100 dark:border-blue-900/50">
+            <span className="text-xs font-medium text-blue-900/70 dark:text-blue-300 px-2">
+              {lang === 'fr' ? 'Région / Devise :' : 'Region / Currency:'}
+            </span>
+            {(['CAD', 'XOF', 'HTG'] as CurrencyMode[])
+              .filter((c) => ACTIVE_REGIONS.includes(CURRENCY_REGION_MAP[c]))
+              .map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCurrency(c)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                    activeCurrency === c
+                      ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                      : 'text-blue-900 dark:text-blue-200 hover:text-blue-700 dark:hover:text-white'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            <RegionBadge showCurrency showLockHint />
             <button
-              key={c}
-              onClick={() => setCurrency(c)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                currency === c
-                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                  : 'text-blue-900 dark:text-blue-200 hover:text-blue-700 dark:hover:text-white'
-              }`}
+              type="button"
+              disabled
+              aria-disabled="true"
+              title={
+                lang === 'fr'
+                  ? 'Devise verrouillée sur CAD pour le lancement Canada'
+                  : 'Currency locked to CAD for Canada launch'
+              }
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-blue-950/40 text-slate-500 dark:text-blue-300 border border-slate-200 dark:border-blue-900 cursor-not-allowed opacity-75"
             >
-              {c}
+              CAD
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Feature Selector Tabs */}
@@ -206,7 +242,7 @@ export const InteractiveFeatureDemo: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-blue-50 dark:divide-blue-900/30">
                   {items.map((item) => {
-                    const unitPrice = item.rate * (currency === 'CAD' ? 1 : currentCfg.rateMultiplier / 10);
+                    const unitPrice = item.rate * (activeCurrency === 'CAD' ? 1 : currentCfg.rateMultiplier / 10);
                     const rowTotal = item.qty * unitPrice;
                     return (
                       <tr key={item.id} className="group">
@@ -294,24 +330,29 @@ export const InteractiveFeatureDemo: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
                 {
+                  regionCode: 'AF' as RegionCode,
                   name: 'Kaboré Logistique SARL',
                   region: 'Ouagadougou, BF',
                   invoices: 4,
                   balance: lang === 'fr' ? 'À jour' : 'Up to date',
                 },
                 {
+                  regionCode: 'CA' as RegionCode,
                   name: 'Éditions Laurentides',
                   region: 'Montréal, QC',
                   invoices: 2,
                   balance: lang === 'fr' ? 'En attente (15j)' : 'Pending (15d)',
                 },
                 {
+                  regionCode: 'HT' as RegionCode,
                   name: 'Atelier Caraïbes Création',
                   region: 'Port-au-Prince, HT',
                   invoices: 6,
                   balance: lang === 'fr' ? 'À jour' : 'Up to date',
                 },
-              ].map((c, i) => (
+              ]
+                .filter((c) => ACTIVE_REGIONS.includes(c.regionCode))
+                .map((c, i) => (
                 <div
                   key={i}
                   className="p-4 rounded-xl border border-blue-100 dark:border-blue-900/60 bg-white dark:bg-[#081730]"

@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { X, CheckCircle2, ShieldCheck, Mail, MapPin, User, Briefcase } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
+import {
+  ACTIVE_REGIONS,
+  DEFAULT_REGION_CODE,
+  IS_MULTI_REGION,
+} from '../config/regions';
 
 interface WaitlistModalProps {
   isOpen: boolean;
@@ -16,14 +21,15 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
     fullName: '',
     email: '',
     profile: 'autonome',
-    region: 'canada',
+    region: DEFAULT_REGION_CODE as string,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email.trim() || !formData.email.includes('@')) {
       setError(t.errorEmail);
@@ -34,28 +40,54 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
       return;
     }
 
-    try {
-      const existing = JSON.parse(localStorage.getItem('startbill_waitlist') || '[]');
-      existing.push({
-        ...formData,
-        date: new Date().toISOString(),
-      });
-      localStorage.setItem('startbill_waitlist', JSON.stringify(existing));
-    } catch {
-      // Fallback
-    }
-
     setError(null);
-    setIsSubmitted(true);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "StartBill n'est pas encore disponible dans votre région.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('startbill_waitlist') || '[]');
+        existing.push({
+          ...formData,
+          date: new Date().toISOString(),
+        });
+        localStorage.setItem('startbill_waitlist', JSON.stringify(existing));
+      } catch {
+        // Fallback
+      }
+
+      setIsSubmitted(true);
+    } catch {
+      setError(
+        lang === 'fr'
+          ? 'Impossible de contacter le serveur. Veuillez réessayer.'
+          : 'Unable to reach server. Please try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
     setIsSubmitted(false);
+    setError(null);
     setFormData({
       fullName: '',
       email: '',
       profile: 'autonome',
-      region: 'canada',
+      region: DEFAULT_REGION_CODE,
     });
     onClose();
   };
@@ -176,14 +208,24 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
                       onChange={(e) => setFormData({ ...formData, region: e.target.value })}
                       className="w-full pl-9 pr-3 py-2 text-sm bg-blue-50/30 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-blue-950 dark:text-white"
                     >
-                      <option value="canada">{t.regions.canada}</option>
-                      <option value="senegal">{t.regions.senegal}</option>
-                      <option value="ci">{t.regions.ci}</option>
-                      <option value="cameroun">{t.regions.cameroun}</option>
-                      <option value="benin">{t.regions.benin}</option>
-                      <option value="afriqueAutre">{t.regions.afriqueAutre}</option>
-                      <option value="haiti">{t.regions.haiti}</option>
-                      <option value="autre">{t.regions.autre}</option>
+                      {ACTIVE_REGIONS.includes('CA') && (
+                        <option value="CA">🇨🇦 {t.regions.canada}</option>
+                      )}
+                      {ACTIVE_REGIONS.includes('AF') && (
+                        <>
+                          <option value="senegal">{t.regions.senegal}</option>
+                          <option value="ci">{t.regions.ci}</option>
+                          <option value="cameroun">{t.regions.cameroun}</option>
+                          <option value="benin">{t.regions.benin}</option>
+                          <option value="afriqueAutre">{t.regions.afriqueAutre}</option>
+                        </>
+                      )}
+                      {ACTIVE_REGIONS.includes('HT') && (
+                        <option value="HT">🇭🇹 {t.regions.haiti}</option>
+                      )}
+                      {IS_MULTI_REGION && (
+                        <option value="autre">{t.regions.autre}</option>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -192,9 +234,14 @@ export const WaitlistModal: React.FC<WaitlistModalProps> = ({ isOpen, onClose })
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-2.5 px-4 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs active:scale-[0.98]"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 rounded-lg transition-colors shadow-xs active:scale-[0.98]"
                 >
-                  {t.submitBtn}
+                  {isSubmitting
+                    ? lang === 'fr'
+                      ? 'Enregistrement...'
+                      : 'Submitting...'
+                    : t.submitBtn}
                 </button>
               </div>
 

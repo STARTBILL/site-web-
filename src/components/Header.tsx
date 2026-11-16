@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Menu, X, Sun, Moon, Globe } from 'lucide-react';
+import { Menu, X, Sun, Moon, LogIn, LogOut, UserCheck } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { TRANSLATIONS } from '../data/translations';
+import { ACTIVE_REGIONS, ALL_REGIONS, IS_MULTI_REGION } from '../config/regions';
+import { RegionBadge } from './RegionBadge';
+import type { AuthUser } from './RegionBlockedScreen';
 
 interface HeaderProps {
   activeSection: string;
@@ -9,6 +12,9 @@ interface HeaderProps {
   onOpenWaitlist: () => void;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  currentUser?: AuthUser | null;
+  onOpenAuth?: (tab?: 'login' | 'signup') => void;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +23,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenWaitlist,
   isDarkMode,
   onToggleDarkMode,
+  currentUser,
+  onOpenAuth,
+  onLogout,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { lang, setLang } = useLanguage();
@@ -82,8 +91,21 @@ export const Header: React.FC<HeaderProps> = ({
           ))}
         </nav>
 
-        {/* Zone 3: Language Selector + Theme toggle + CTA + Mobile trigger */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        {/* Zone 3: Region Badge + Language Selector + Theme toggle + Auth/CTA + Mobile trigger */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Sélecteur multi-région masqué en mono-région ; remplacé par le badge statique 🇨🇦 Canada */}
+          {IS_MULTI_REGION ? (
+            <div className="hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 text-xs font-semibold">
+              {ALL_REGIONS.filter((r) => ACTIVE_REGIONS.includes(r.code)).map((r) => (
+                <span key={r.code} className="px-1.5 py-0.5 text-blue-950 dark:text-blue-100">
+                  {r.flag} {lang === 'fr' ? r.label : r.labelEn}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <RegionBadge className="hidden md:inline-flex" />
+          )}
+
           {/* Language Switcher Pill */}
           <div className="inline-flex items-center p-0.5 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 text-xs font-bold">
             <button
@@ -118,9 +140,35 @@ export const Header: React.FC<HeaderProps> = ({
             {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-blue-700" />}
           </button>
 
+          {onOpenAuth && (
+            currentUser ? (
+              <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs font-semibold text-blue-950 dark:text-white">
+                <UserCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="max-w-[90px] truncate">{currentUser.fullName}</span>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    title={lang === 'fr' ? 'Se déconnecter' : 'Log out'}
+                    className="p-0.5 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => onOpenAuth('login')}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-900 dark:text-blue-100 bg-blue-50/70 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              >
+                <LogIn className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>{lang === 'fr' ? 'Connexion' : 'Sign in'}</span>
+              </button>
+            )
+          )}
+
           <button
             onClick={onOpenWaitlist}
-            className="hidden sm:inline-flex items-center px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-xs active:scale-[0.98]"
+            className="hidden sm:inline-flex items-center px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-xs active:scale-[0.98]"
           >
             {t.nav.joinWaitlist}
           </button>
@@ -178,7 +226,37 @@ export const Header: React.FC<HeaderProps> = ({
             ))}
           </div>
 
-          <div className="pt-3 border-t border-blue-100 dark:border-blue-900">
+          <div className="pt-3 border-t border-blue-100 dark:border-blue-900 space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <RegionBadge showCurrency />
+              {onOpenAuth && (
+                currentUser ? (
+                  onLogout && (
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>{lang === 'fr' ? 'Se déconnecter' : 'Log out'}</span>
+                    </button>
+                  )
+                ) : (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenAuth('login');
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>{lang === 'fr' ? 'Connexion / Inscription' : 'Sign in / Sign up'}</span>
+                  </button>
+                )
+              )}
+            </div>
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
