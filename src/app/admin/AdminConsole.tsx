@@ -3,6 +3,7 @@ import { RefreshCw, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AdminSidebar, ADMIN_NAV_ITEMS } from './AdminSidebar';
 import { AdminAuthGate, type AdminSessionState } from './AdminAuthGate';
 import { useSuperAdmin, useIdleLogout } from '../../hooks/useSuperAdmin';
+import { adminApiRequest } from '../../utils/adminClient';
 import type { AdminOverviewData, AdminSectionId } from './types';
 
 import { DashboardSection } from './sections/DashboardSection';
@@ -62,10 +63,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   // Vérifier la session admin existante au montage
   useEffect(() => {
     let active = true;
-    fetch('/api/auth/admin/session', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!active) return;
+    adminApiRequest('/api/auth/admin/session')
+      .then(({ data }) => {
+        if (!active || !data) return;
         const next: AdminSessionState = {
           authenticated: Boolean(data.authenticated),
           user: data.user || null,
@@ -90,9 +90,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
   const handleLogout = useCallback(async () => {
     try {
-      await fetch('/api/auth/admin/logout', {
+      await adminApiRequest('/api/auth/admin/logout', {
         method: 'POST',
-        credentials: 'include',
       });
     } catch {
       // Ignore logout network error
@@ -118,31 +117,26 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
   const adminFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
-      const res = await fetch(url, {
+      const { status, data } = await adminApiRequest(url, {
         ...options,
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
           'X-CSRF-Token': sessionState.csrfToken,
           ...(options.headers || {}),
         },
       });
-      if (res.status === 401 || res.status === 403) {
-        const errBody = await res.json().catch(() => ({}));
-        if (errBody.code === 'SESSION_IDLE_EXPIRED') {
+      if (status === 401 || status === 403) {
+        if (data?.code === 'SESSION_IDLE_EXPIRED') {
           await handleLogout();
         }
-        throw new Error(errBody.error || 'Accès refusé (403)');
+        throw new Error(data?.error || 'Accès refusé (403)');
       }
-      if (res.status === 429) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error || 'Limite de requêtes atteinte (10 req/min max).');
+      if (status === 429) {
+        throw new Error(data?.error || 'Limite de requêtes atteinte (10 req/min max).');
       }
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error || 'Erreur serveur');
+      if (status >= 400) {
+        throw new Error(data?.error || 'Erreur serveur');
       }
-      return res.json();
+      return data;
     },
     [sessionState.csrfToken, handleLogout]
   );

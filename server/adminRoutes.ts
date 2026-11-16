@@ -72,7 +72,7 @@ function setSessionCookie(req: Request, res: Response, sessionId: string) {
     `${ADMIN_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    isHttps ? 'SameSite=None' : 'SameSite=Lax',
     `Max-Age=${Math.floor(ADMIN_IDLE_TIMEOUT_MS / 1000)}`,
   ];
   if (isHttps) flags.push('Secure');
@@ -88,7 +88,8 @@ function clearSessionCookie(res: Response) {
 
 function resolveSession(req: Request) {
   const cookies = parseCookies(req);
-  const sid = cookies[ADMIN_COOKIE_NAME];
+  const headerToken = req.headers['x-admin-session']?.toString().trim();
+  const sid = cookies[ADMIN_COOKIE_NAME] || headerToken;
   if (!sid) return null;
 
   const session = adminSessions.get(sid);
@@ -374,6 +375,7 @@ export function createAdminAuthRouter() {
       totpEnabled: Boolean(adminUser.totpEnabled),
       totpVerified: false,
       csrfToken,
+      sessionToken: sessionId,
     });
   });
 

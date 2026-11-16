@@ -11,6 +11,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { SUPER_ADMIN_EMAIL } from '../../hooks/useSuperAdmin';
+import { adminApiRequest } from '../../utils/adminClient';
 
 export interface AdminSessionState {
   authenticated: boolean;
@@ -72,17 +73,14 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
       sessionState.csrfToken
     ) {
       let active = true;
-      fetch('/api/auth/admin/totp/setup', {
+      adminApiRequest('/api/auth/admin/totp/setup', {
         method: 'POST',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
           'X-CSRF-Token': sessionState.csrfToken,
         },
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (!active) return;
+        .then(({ data }) => {
+          if (!active || !data) return;
           if (data.alreadyEnrolled) {
             setAlreadyEnrolled(true);
           } else if (data.qrDataUrl) {
@@ -138,15 +136,12 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     setInfo(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/admin/login', {
+      const { status, data } = await adminApiRequest('/api/auth/admin/login', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Authentification refusée.');
+      if (status >= 400 || !data?.success) {
+        setError(data?.error || 'Authentification refusée.');
         return;
       }
       setCurrentPassword(password);
@@ -160,7 +155,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         csrfToken: data.csrfToken,
       });
     } catch {
-      setError('Erreur réseau lors de la connexion administrateur.');
+      setError('Erreur lors de la connexion administrateur.');
     } finally {
       setLoading(false);
     }
@@ -175,18 +170,15 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/admin/change-password', {
+      const { status, data } = await adminApiRequest('/api/auth/admin/change-password', {
         method: 'POST',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
           'X-CSRF-Token': sessionState.csrfToken,
         },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Impossible de modifier le mot de passe.');
+      if (status >= 400 || !data?.success) {
+        setError(data?.error || 'Impossible de modifier le mot de passe.');
         return;
       }
       setCurrentPassword('');
@@ -199,7 +191,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         mustChangePassword: false,
       });
     } catch {
-      setError('Erreur réseau lors du changement de mot de passe.');
+      setError('Erreur lors du changement de mot de passe.');
     } finally {
       setLoading(false);
     }
@@ -210,18 +202,15 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/admin/totp/verify', {
+      const { status, data } = await adminApiRequest('/api/auth/admin/totp/verify', {
         method: 'POST',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
           'X-CSRF-Token': sessionState.csrfToken,
         },
         body: JSON.stringify({ code: totpCode.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Code 2FA invalide.');
+      if (status >= 400 || !data?.success) {
+        setError(data?.error || 'Code 2FA invalide.');
         return;
       }
       setTotpCode('');
@@ -233,7 +222,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         csrfToken: data.csrfToken,
       });
     } catch {
-      setError('Erreur réseau lors de la vérification 2FA.');
+      setError('Erreur lors de la vérification 2FA.');
     } finally {
       setLoading(false);
     }

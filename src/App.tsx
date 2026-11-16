@@ -16,6 +16,7 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { isRegionActive } from './config/regions';
 import { AdminConsole } from './app/admin/AdminConsole';
 import type { AdminSectionId } from './app/admin/types';
+import { adminApiRequest } from './utils/adminClient';
 import { Wrench } from 'lucide-react';
 
 // Dedicated Pages
@@ -143,11 +144,10 @@ function MainApp() {
     loadPublicConfig();
   }, [loadPublicConfig]);
 
-  // Synchroniser la session Super Admin si elle existe déjà (cookie HttpOnly)
+  // Synchroniser la session Super Admin si elle existe déjà
   useEffect(() => {
-    fetch('/api/auth/admin/session', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
+    adminApiRequest('/api/auth/admin/session')
+      .then(({ data }) => {
         if (
           data?.authenticated &&
           data?.totpVerified &&
@@ -237,9 +237,8 @@ function MainApp() {
   const handleLogout = async () => {
     if (currentUser?.role === 'super_admin') {
       try {
-        await fetch('/api/auth/admin/logout', {
+        await adminApiRequest('/api/auth/admin/logout', {
           method: 'POST',
-          credentials: 'include',
         });
       } catch {
         // Ignore logout failure
