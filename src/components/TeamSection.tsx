@@ -34,6 +34,18 @@ export const FOUNDERS_TEAM: TeamMember[] = [
       email: 'contact.startbill@gmail.com',
     },
   },
+  {
+    id: 'merveille-grace-mbida',
+    name: 'Merveille Grace Mbida',
+    role: 'Partnership Research Coordinator',
+    photo: '/assets/aistudio/6044099251811323758_cd967e5e.jpg',
+    photoAlt: 'Merveille Grace Mbida, Partnership Research Coordinator de StartBill',
+    bio: "Spécialiste des alliances stratégiques et de la recherche de partenariats, Merveille développe les collaborations clés qui accélèrent la portée et l'impact de StartBill.",
+    socials: {
+      linkedin: 'https://www.linkedin.com/company/startbill',
+      email: 'contact.startbill@gmail.com',
+    },
+  },
 ];
 
 const FOUNDERS_TEAM_EN: TeamMember[] = [
@@ -46,6 +58,11 @@ const FOUNDERS_TEAM_EN: TeamMember[] = [
     ...FOUNDERS_TEAM[1],
     photoAlt: 'Franquetz Nongni, Lead Software Developer at StartBill',
     bio: 'Software architect and web technologies specialist, Franquetz ensures StartBill remains fast, secure, and intuitive for every business owner.',
+  },
+  {
+    ...FOUNDERS_TEAM[2],
+    photoAlt: 'Merveille Grace Mbida, Partnership Research Coordinator at StartBill',
+    bio: "Strategic alliances and partnership research specialist, Merveille builds key collaborations that expand StartBill's reach and impact across target markets.",
   },
 ];
 
@@ -83,7 +100,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ members }) => {
         </span>
       </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto">
+      <div className="relative z-10 max-w-6xl mx-auto">
         {/* En-tête de section */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -106,8 +123,12 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ members }) => {
           </p>
         </motion.div>
 
-        {/* Grille responsive : 1 colonne sur mobile, 2 colonnes sur desktop */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10 max-w-4xl mx-auto items-stretch">
+        {/* Grille responsive : 1 colonne mobile, 2 tablette, 3 colonnes desktop */}
+        <div
+          className={`grid grid-cols-1 md:grid-cols-2 ${
+            teamMembers.length >= 3 ? 'lg:grid-cols-3 max-w-6xl' : 'max-w-4xl'
+          } gap-8 lg:gap-8 mx-auto items-stretch`}
+        >
           {teamMembers.map((member, index) => (
             <TeamMemberCard key={member.id} member={member} index={index} />
           ))}
