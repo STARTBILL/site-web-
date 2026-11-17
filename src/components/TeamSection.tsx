@@ -16,7 +16,7 @@ export const FOUNDERS_TEAM: TeamMember[] = [
     photoAlt: 'Ferline ZOGNI, Founder & Chief Executive Officer (CEO) de StartBill',
     bio: "Passionnée par l'entrepreneuriat et la finance, Ferline pilote la vision stratégique de StartBill pour offrir une solution simple et accessible aux PME canadiennes.",
     socials: {
-      linkedin: 'https://www.linkedin.com/company/startbill',
+      linkedin: 'https://www.linkedin.com/in/ferline-gouefack-zogni',
       twitter: 'https://x.com/startbill_app',
       email: 'contact.startbill@gmail.com',
     },
