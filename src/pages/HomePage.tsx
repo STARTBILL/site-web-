@@ -179,13 +179,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                   src={cmsOverrides?.videoUrl || '/assets/videos/startbill-hero.mp4'}
                   type="video/mp4"
                 />
-                <track
-                  kind="subtitles"
-                  src="/assets/videos/subtitles-fr.vtt"
-                  srcLang="fr"
-                  label="Français"
-                  default={lang === 'fr'}
-                />
                 {t.hero.videoFallback}
               </video>
             </div>
