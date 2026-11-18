@@ -27,9 +27,11 @@ export const ACCUEIL_CONTENT = {
   banniere: {
     title: "Nous simplifions la facturation pour les entrepreneurs et les PME",
     phrases: [
-      "Facturer en quelques secondes.",
-      "Suivre qui te doit de l'argent.",
-      "Encaisser sans courir après tes clients.",
+      "Facture en toute simplicité.",
+      "Estime combien mettre de côté pour tes taxes.",
+      "Repère tes dépenses déductibles.",
+      "Garde un œil sur ta TPS et ta TVQ.",
+      "Anticipe tes obligations fiscales",
     ],
     sousTitre: "STARTBILL — Ton assistant financier. Factures, dépenses et finances, en un seul endroit.",
     cible: "Pensé pour les travailleurs autonomes, commerçants, microentreprises et PME au Canada, en Afrique francophone et en Haïti.",

@@ -55,9 +55,11 @@ export const TRANSLATIONS = {
       titleLine1: "Nous simplifions la facturation",
       titleLine2: "pour les entrepreneurs et les PME",
       phrases: [
-        "Facturer en quelques secondes.",
-        "Suivre qui te doit de l'argent.",
-        "Encaisser sans courir après tes clients.",
+        "Facture en toute simplicité.",
+        "Estime combien mettre de côté pour tes taxes.",
+        "Repère tes dépenses déductibles.",
+        "Garde un œil sur ta TPS et ta TVQ.",
+        "Anticipe tes obligations fiscales",
       ],
       subTitle: "STARTBILL — Ton assistant financier. Factures, dépenses et finances, en un seul endroit.",
       targetAudience:
@@ -602,9 +604,11 @@ export const TRANSLATIONS = {
       titleLine1: "We simplify invoicing",
       titleLine2: "for entrepreneurs and SMBs",
       phrases: [
-        "Invoice in just seconds.",
-        "Track who owes you money.",
-        "Get paid without chasing clients.",
+        "Invoice with complete simplicity.",
+        "Estimate how much to set aside for taxes.",
+        "Spot your deductible expenses.",
+        "Keep an eye on your GST and QST.",
+        "Stay ahead of your tax obligations.",
       ],
       subTitle: "STARTBILL — Your financial assistant. Invoices, expenses, and finances in one place.",
       targetAudience:
