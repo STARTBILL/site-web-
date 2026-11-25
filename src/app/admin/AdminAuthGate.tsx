@@ -19,6 +19,7 @@ export interface AdminSessionState {
   authenticated: boolean;
   setupRequired?: boolean;
   envManaged?: boolean;
+  backendError?: string | null;
   user: {
     id: string;
     fullName: string;
@@ -35,14 +36,18 @@ export interface AdminSessionState {
 interface AdminAuthGateProps {
   sessionState: AdminSessionState;
   nonAdminLoggedInEmail?: string | null;
+  onClearStandardSession?: () => Promise<void> | void;
   onSessionUpdated: (next: AdminSessionState) => void;
+  onRetrySession?: () => void;
   onExitAdmin: () => void;
 }
 
 export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   sessionState,
   nonAdminLoggedInEmail,
+  onClearStandardSession,
   onSessionUpdated,
+  onRetrySession,
   onExitAdmin,
 }) => {
   const [email, setEmail] = useState(SUPER_ADMIN_EMAIL);
@@ -129,13 +134,26 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
               Le compte <span className="font-semibold">{nonAdminLoggedInEmail}</span> ne dispose pas des privilèges Super Administrateur.
             </p>
           </div>
-          <button
-            onClick={onExitAdmin}
-            className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Retourner à l’accueil</span>
-          </button>
+          <div className="space-y-2.5">
+            {onClearStandardSession && (
+              <button
+                type="button"
+                onClick={() => onClearStandardSession()}
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Déconnecter ce compte et me connecter en Admin</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onExitAdmin}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-slate-700 dark:text-blue-200 border border-slate-200 dark:border-blue-800 hover:bg-slate-50 dark:hover:bg-blue-950 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Retourner à l’accueil</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -315,10 +333,21 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           </button>
         </div>
 
-        {error && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+        {(error || sessionState.backendError) && (
+          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error || sessionState.backendError}</span>
+            </div>
+            {sessionState.backendError && onRetrySession && (
+              <button
+                type="button"
+                onClick={onRetrySession}
+                className="text-[11px] font-semibold underline hover:text-red-900 dark:hover:text-red-100"
+              >
+                Réessayer la connexion au serveur
+              </button>
+            )}
           </div>
         )}
 

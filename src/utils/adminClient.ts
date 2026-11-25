@@ -8,17 +8,44 @@ export function setStoredAdminToken(token: string): void {
   memoryAdminToken = token || '';
 }
 
-async function parseJsonSafe(res: Response): Promise<{ isJson: boolean; data: any }> {
-  const ct = res.headers.get('content-type') || '';
-  if (!ct.toLowerCase().includes('application/json')) {
-    return { isJson: false, data: null };
-  }
+const API_BASE_URL = String(import.meta.env.VITE_API_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
+
+function buildApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
+}
+
+async function parseJsonSafe(
+  res: Response
+): Promise<{ isJson: boolean; data: any; isHtml: boolean }> {
+  let rawText = '';
   try {
-    const data = await res.json();
-    return { isJson: true, data };
+    rawText = await res.text();
   } catch {
-    return { isJson: false, data: null };
+    return { isJson: false, data: null, isHtml: false };
   }
+
+  const trimmed = rawText.trim();
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  const looksJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+  const isHtml =
+    ct.includes('text/html') ||
+    trimmed.startsWith('<!doctype') ||
+    trimmed.startsWith('<html') ||
+    trimmed.startsWith('<');
+
+  if (ct.includes('application/json') || looksJson) {
+    try {
+      const data = JSON.parse(trimmed);
+      return { isJson: true, data, isHtml: false };
+    } catch {
+      return { isJson: false, data: null, isHtml };
+    }
+  }
+
+  return { isJson: false, data: null, isHtml };
 }
 
 export async function adminApiRequest(
@@ -38,12 +65,12 @@ export async function adminApiRequest(
   }
 
   try {
-    const res = await fetch(path, {
+    const res = await fetch(buildApiUrl(path), {
       ...options,
       credentials: 'include',
       headers,
     });
-    const { isJson, data } = await parseJsonSafe(res);
+    const { isJson, data, isHtml } = await parseJsonSafe(res);
     if (isJson && data) {
       if (typeof data.sessionToken === 'string' && data.sessionToken) {
         setStoredAdminToken(data.sessionToken);
@@ -53,17 +80,23 @@ export async function adminApiRequest(
       }
       return { status: res.status, data };
     }
+
+    const staticModeDetected = isHtml && (res.status === 200 || res.status === 404 || res.status === 405);
     return {
       status: res.status || 502,
       data: {
-        error:
-          'Le serveur d’administration n’a pas renvoyé de réponse JSON valide. Vérifiez que le backend Node.js est actif.',
+        isNonJson: true,
+        staticHostDetected: staticModeDetected,
+        error: staticModeDetected
+          ? 'Backend Node.js non actif sur cet hébergement (réponse HTML statique reçue). Démarrez le serveur avec "npm start" (node server.ts).'
+          : `Le serveur d’administration n’a pas renvoyé de réponse JSON valide (HTTP ${res.status}). Vérifiez que le backend Node.js est actif.`,
       },
     };
   } catch {
     return {
       status: 0,
       data: {
+        isNonJson: true,
         error: 'Impossible de joindre le serveur d’administration STARTBILL.',
       },
     };
@@ -84,7 +117,7 @@ export async function downloadAdminCsv(
   }
 
   try {
-    const res = await fetch(path, {
+    const res = await fetch(buildApiUrl(path), {
       method: 'GET',
       credentials: 'include',
       headers,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AdminSidebar, ADMIN_NAV_ITEMS } from './AdminSidebar';
 import { AdminAuthGate, type AdminSessionState } from './AdminAuthGate';
@@ -28,6 +28,7 @@ interface AdminConsoleProps {
   onSelectSection: (section: AdminSectionId) => void;
   onExitAdmin: () => void;
   nonAdminLoggedInEmail?: string | null;
+  onClearStandardSession?: () => Promise<void> | void;
   onPublicConfigChanged?: () => void;
   onAdminSessionUserChange?: (user: AdminSessionState['user'] | null) => void;
 }
@@ -37,6 +38,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onSelectSection,
   onExitAdmin,
   nonAdminLoggedInEmail,
+  onClearStandardSession,
   onPublicConfigChanged,
   onAdminSessionUserChange,
 }) => {
@@ -66,37 +68,50 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     window.setTimeout(() => setToast(null), 4000);
   };
 
-  // Vérifier la session admin existante au montage
-  useEffect(() => {
-    let active = true;
-    adminApiRequest('/api/auth/admin/session')
-      .then(({ data }) => {
-        if (!active || !data) return;
-        const next: AdminSessionState = {
-          authenticated: Boolean(data.authenticated),
-          setupRequired: Boolean(data.setupRequired),
-          envManaged: Boolean(data.envManaged),
-          user: data.user || null,
-          mustChangePassword: Boolean(data.mustChangePassword),
-          totpEnabled: Boolean(data.totpEnabled),
-          totpVerified: Boolean(data.totpVerified),
-          csrfToken: data.csrfToken || '',
-        };
-        setSessionState(next);
-        onAdminSessionUserChange?.(
-          next.authenticated && (!next.totpEnabled || next.totpVerified) ? next.user : null
-        );
-      })
-      .catch(() => {
-        // Ignore network check error
-      })
-      .finally(() => {
-        if (active) setCheckingSession(false);
-      });
-    return () => {
-      active = false;
-    };
+  const onAdminSessionUserChangeRef = useRef(onAdminSessionUserChange);
+  onAdminSessionUserChangeRef.current = onAdminSessionUserChange;
+  const onExitAdminRef = useRef(onExitAdmin);
+  onExitAdminRef.current = onExitAdmin;
+
+  const checkAdminSession = useCallback(async () => {
+    setCheckingSession(true);
+    try {
+      const { status, data } = await adminApiRequest('/api/auth/admin/session');
+      if (!data) return;
+      const backendError =
+        data?.isNonJson || status === 0 || status >= 500
+          ? data.error || 'Serveur d’administration inaccessible.'
+          : null;
+
+      const next: AdminSessionState = {
+        authenticated: Boolean(data.authenticated),
+        setupRequired: Boolean(data.setupRequired),
+        envManaged: Boolean(data.envManaged),
+        backendError,
+        user: data.user || null,
+        mustChangePassword: Boolean(data.mustChangePassword),
+        totpEnabled: Boolean(data.totpEnabled),
+        totpVerified: Boolean(data.totpVerified),
+        csrfToken: data.csrfToken || '',
+      };
+      setSessionState(next);
+      onAdminSessionUserChangeRef.current?.(
+        next.authenticated && (!next.totpEnabled || next.totpVerified) ? next.user : null
+      );
+    } catch {
+      setSessionState((prev) => ({
+        ...prev,
+        backendError: 'Impossible de vérifier la session administrateur.',
+      }));
+    } finally {
+      setCheckingSession(false);
+    }
   }, []);
+
+  // Vérifier la session admin existante au montage uniquement
+  useEffect(() => {
+    checkAdminSession();
+  }, [checkAdminSession]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -115,9 +130,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       totpVerified: false,
       csrfToken: '',
     });
-    onAdminSessionUserChange?.(null);
-    onExitAdmin();
-  }, [onAdminSessionUserChange, onExitAdmin]);
+    onAdminSessionUserChangeRef.current?.(null);
+    onExitAdminRef.current();
+  }, []);
 
   // Déconnexion automatique après 30 minutes d'inactivité
   const { remainingMinutes } = useIdleLogout(isFullyUnlocked, () => {
@@ -166,7 +181,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   useEffect(() => {
     if (isFullyUnlocked) {
       loadOverview();
-      onAdminSessionUserChange?.(sessionState.user);
+      onAdminSessionUserChangeRef.current?.(sessionState.user);
     }
   }, [isFullyUnlocked, loadOverview]);
 
@@ -183,12 +198,14 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       <AdminAuthGate
         sessionState={sessionState}
         nonAdminLoggedInEmail={nonAdminLoggedInEmail}
+        onClearStandardSession={onClearStandardSession}
         onSessionUpdated={(next: AdminSessionState) => {
-          setSessionState(next);
+          setSessionState({ ...next, backendError: null });
           if (next.authenticated && !next.mustChangePassword && (!next.totpEnabled || next.totpVerified)) {
-            onAdminSessionUserChange?.(next.user);
+            onAdminSessionUserChangeRef.current?.(next.user);
           }
         }}
+        onRetrySession={checkAdminSession}
         onExitAdmin={onExitAdmin}
       />
     );

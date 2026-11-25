@@ -195,7 +195,7 @@ function MainApp() {
   }, []);
 
   // Multi-page navigation handler
-  const handleNavigate = (pageId: string) => {
+  const handleNavigate = useCallback((pageId: string) => {
     setAdminSection(null);
     const targetPage = VALID_PAGES.includes(pageId as PageId)
       ? (pageId as PageId)
@@ -208,7 +208,22 @@ function MainApp() {
       window.location.hash = targetPage;
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
+
+  const handleExitAdmin = useCallback(() => {
+    handleNavigate('accueil');
+  }, [handleNavigate]);
+
+  const handleAdminSessionUserChange = useCallback(
+    (adminUser: AuthUser | null) => {
+      if (adminUser) {
+        setCurrentUser(adminUser);
+      } else {
+        setCurrentUser((prev) => (prev?.role === 'super_admin' ? null : prev));
+      }
+    },
+    []
+  );
 
   const handleNavigateAdmin = (section: AdminSectionId = 'dashboard') => {
     setAdminSection(section);
@@ -259,16 +274,11 @@ function MainApp() {
       <AdminConsole
         section={adminSection}
         onSelectSection={(sec) => handleNavigateAdmin(sec)}
-        onExitAdmin={() => handleNavigate('accueil')}
+        onExitAdmin={handleExitAdmin}
         nonAdminLoggedInEmail={currentUser?.email || null}
+        onClearStandardSession={handleLogout}
         onPublicConfigChanged={loadPublicConfig}
-        onAdminSessionUserChange={(adminUser) => {
-          if (adminUser) {
-            setCurrentUser(adminUser);
-          } else if (currentUser?.role === 'super_admin') {
-            setCurrentUser(null);
-          }
-        }}
+        onAdminSessionUserChange={handleAdminSessionUserChange}
       />
     );
   }

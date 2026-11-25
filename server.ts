@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
@@ -89,7 +90,8 @@ async function startServer() {
   });
 
   // Inscription (Sign-up) verrouillée par le middleware requireActiveRegion + mot de passe haché bcrypt
-  app.post('/api/auth/signup', requireActiveRegion, async (req: Request, res: Response) => {
+  app.post('/api/auth/signup', requireActiveRegion, async (req: Request, res: Response, next: NextFunction) => {
+    try {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const fullName = String(req.body?.fullName || '').trim();
@@ -177,6 +179,9 @@ async function startServer() {
         regionActive: isRegionActive(user.region),
       },
     });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Liste d'attente également protégée par le middleware requireActiveRegion
@@ -247,7 +252,8 @@ async function startServer() {
   });
 
   // Connexion standard utilisateur (le compte Super Admin doit utiliser /api/auth/admin/login avec mot de passe + 2FA)
-  app.post('/api/auth/login', async (req: Request, res: Response) => {
+  app.post('/api/auth/login', async (req: Request, res: Response, next: NextFunction) => {
+    try {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
@@ -334,25 +340,50 @@ async function startServer() {
         ? 'Votre région sera bientôt disponible. Merci de votre patience.'
         : null,
     });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Authentification Super Administrateur (mot de passe bcrypt + changement initial + 2FA TOTP)
   app.use('/api/auth/admin', createAdminAuthRouter());
 
-  // Routes /api/admin/* protégées par rate limiting (10 req/min) + requireSuperAdmin (RBAC + CSRF + 2FA + idle 30m)
+  // Routes /api/admin/* protégées par rate limiting + requireSuperAdmin (RBAC + CSRF + 2FA + idle 30m)
   app.use('/api/admin', createProtectedAdminRouter());
 
-  if (!isProd) {
+  // Ne jamais renvoyer du HTML pour une route /api/* inconnue
+  app.use('/api', (_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Point de terminaison API introuvable.' });
+  });
+
+  // Gestionnaire global d'erreurs API : garantit une réponse JSON valide (y compris sur erreur de parsing JSON)
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith('/api')) {
+      next(err);
+      return;
+    }
+    if (res.headersSent) return;
+    const status = typeof err?.status === 'number' && err.status >= 400 ? err.status : 500;
+    const message =
+      status === 400
+        ? 'Requête JSON invalide.'
+        : 'Erreur interne du serveur d’administration STARTBILL.';
+    res.status(status).json({ error: message });
+  });
+
+  const distPath = path.resolve(__dirname, 'dist');
+  const distIndexPath = path.join(distPath, 'index.html');
+
+  if (!isProd || !fs.existsSync(distIndexPath)) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      res.sendFile(distIndexPath);
     });
   }
 

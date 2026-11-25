@@ -1,13 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import type { RegionCode, CurrencyCode } from '../src/config/regions.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
+const FALLBACK_DATA_DIR = path.join(os.tmpdir(), 'startbill-data');
 export const DB_FILE_PATH = path.join(DATA_DIR, 'startbill-db.json');
+const FALLBACK_DB_FILE_PATH = path.join(FALLBACK_DATA_DIR, 'startbill-db.json');
+let activeDbFilePath = DB_FILE_PATH;
 
 export const SUPER_ADMIN_EMAIL = 'contact.startbill@gmail.com';
 
@@ -1035,26 +1039,45 @@ function normalizeUsersMetadata(users: DbUser[]): DbUser[] {
   });
 }
 
+function ensureWritableDbPath(): string {
+  const candidates = [activeDbFilePath, DB_FILE_PATH, FALLBACK_DB_FILE_PATH];
+  for (const candidate of candidates) {
+    const dir = path.dirname(candidate);
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.accessSync(dir, fs.constants.W_OK);
+      activeDbFilePath = candidate;
+      return candidate;
+    } catch {
+      // Try next writable directory
+    }
+  }
+  return activeDbFilePath;
+}
+
 export function getDb(): StartBillDatabase {
   if (cachedDb) return cachedDb;
-
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
 
   let existingAdmin: DbUser | undefined;
   let partialDb: Partial<StartBillDatabase> | null = null;
 
-  if (fs.existsSync(DB_FILE_PATH)) {
-    try {
-      partialDb = JSON.parse(fs.readFileSync(DB_FILE_PATH, 'utf8')) as Partial<StartBillDatabase>;
-      if (Array.isArray(partialDb.users)) {
-        existingAdmin = partialDb.users.find(
-          (u) => String(u.email).toLowerCase() === SUPER_ADMIN_EMAIL
-        );
+  const readCandidates = [activeDbFilePath, FALLBACK_DB_FILE_PATH, DB_FILE_PATH];
+  for (const filePath of readCandidates) {
+    if (fs.existsSync(filePath)) {
+      try {
+        partialDb = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Partial<StartBillDatabase>;
+        if (Array.isArray(partialDb.users)) {
+          existingAdmin = partialDb.users.find(
+            (u) => String(u.email).toLowerCase() === SUPER_ADMIN_EMAIL
+          );
+        }
+        activeDbFilePath = filePath;
+        break;
+      } catch {
+        partialDb = null;
       }
-    } catch {
-      partialDb = null;
     }
   }
 
@@ -1088,11 +1111,21 @@ export function saveDb(db?: StartBillDatabase): void {
   if (!target) return;
   cachedDb = target;
 
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const serialized = JSON.stringify(target, null, 2);
+  const primaryPath = ensureWritableDbPath();
+  try {
+    fs.writeFileSync(primaryPath, serialized, { mode: 0o600 });
+  } catch {
+    try {
+      if (!fs.existsSync(FALLBACK_DATA_DIR)) {
+        fs.mkdirSync(FALLBACK_DATA_DIR, { recursive: true });
+      }
+      activeDbFilePath = FALLBACK_DB_FILE_PATH;
+      fs.writeFileSync(FALLBACK_DB_FILE_PATH, serialized, { mode: 0o600 });
+    } catch {
+      // Conserve l'état en mémoire si le système de fichiers est strictement en lecture seule
+    }
   }
-
-  fs.writeFileSync(DB_FILE_PATH, JSON.stringify(target, null, 2), { mode: 0o600 });
 }
 
 export function sanitizeUserForClient(user: DbUser) {

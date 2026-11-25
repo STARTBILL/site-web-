@@ -87,18 +87,26 @@ export function adminRateLimiter(req, res, next) {
 }
 
 export function isSameOriginOrCustomHeader(req) {
+  if (req.headers['x-requested-with'] || req.headers['x-csrf-token']) {
+    return true;
+  }
   const origin = req.headers.origin?.toString();
-  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toString().split(',')[0].trim();
-  if (origin && host) {
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '')
+    .toString()
+    .split(',')[0]
+    .trim();
+  const appUrl = process.env.APP_URL || '';
+  if (origin) {
     try {
       const originHost = new URL(origin).host;
-      if (originHost === host) return true;
-      return false;
+      if (host && originHost === host) return true;
+      if (appUrl && originHost === new URL(appUrl).host) return true;
     } catch {
       return false;
     }
+    return false;
   }
-  return Boolean(req.headers['x-requested-with'] || req.headers['x-csrf-token']);
+  return true;
 }
 
 /**

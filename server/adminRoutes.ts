@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import {
@@ -154,6 +154,14 @@ function escapeCsvCell(value: unknown): string {
   const raw = String(value ?? '').replace(/"/g, '""');
   const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   return `"${safe}"`;
+}
+
+function asyncRoute(
+  handler: (req: Request, res: Response, next: NextFunction) => Promise<void>
+): RequestHandler {
+  return (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
 }
 
 function isStrongAdminPassword(pw: string): boolean {
@@ -328,7 +336,10 @@ export function createAdminAuthRouter() {
   });
 
   // Activation initiale unique (verrouillée dès que le mot de passe est défini ou si ADMIN_PASSCODE est configuré)
-  router.post('/setup', adminAuthRateLimiter, async (req: Request, res: Response) => {
+  router.post(
+    '/setup',
+    adminAuthRateLimiter,
+    asyncRoute(async (req: Request, res: Response) => {
     if (!isSameOriginOrCustomHeader(req)) {
       res.status(403).json({ error: 'Origine non autorisée.' });
       return;
@@ -433,9 +444,12 @@ export function createAdminAuthRouter() {
       csrfToken,
       sessionToken: sessionId,
     });
-  });
+  }));
 
-  router.post('/login', adminAuthRateLimiter, async (req: Request, res: Response) => {
+  router.post(
+    '/login',
+    adminAuthRateLimiter,
+    asyncRoute(async (req: Request, res: Response) => {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
@@ -580,7 +594,7 @@ export function createAdminAuthRouter() {
       csrfToken,
       sessionToken: sessionId,
     });
-  });
+  }));
 
   router.patch('/profile', (req: Request, res: Response) => {
     const resolved = resolveSession(req);
@@ -620,7 +634,9 @@ export function createAdminAuthRouter() {
     res.json({ success: true, user: sanitizeUserForClient(adminUser) });
   });
 
-  router.post('/change-password', async (req: Request, res: Response) => {
+  router.post(
+    '/change-password',
+    asyncRoute(async (req: Request, res: Response) => {
     const resolved = resolveSession(req);
     if (!resolved || resolved.email !== SUPER_ADMIN_EMAIL) {
       res.status(403).json({ error: 'Session Super Admin invalide.' });
@@ -690,9 +706,11 @@ export function createAdminAuthRouter() {
       totpEnabled: Boolean(adminUser.totpEnabled),
       totpVerified: resolved.totpVerified,
     });
-  });
+  }));
 
-  router.post('/totp/setup', async (req: Request, res: Response) => {
+  router.post(
+    '/totp/setup',
+    asyncRoute(async (req: Request, res: Response) => {
     const resolved = resolveSession(req);
     if (!resolved || resolved.email !== SUPER_ADMIN_EMAIL) {
       res.status(403).json({ error: 'Session Super Admin requise.' });
@@ -730,7 +748,7 @@ export function createAdminAuthRouter() {
       qrDataUrl,
       otpauthUri,
     });
-  });
+  }));
 
   router.post('/totp/verify', (req: Request, res: Response) => {
     const resolved = resolveSession(req);
@@ -797,7 +815,9 @@ export function createAdminAuthRouter() {
     });
   });
 
-  router.post('/totp/disable', async (req: Request, res: Response) => {
+  router.post(
+    '/totp/disable',
+    asyncRoute(async (req: Request, res: Response) => {
     const resolved = resolveSession(req);
     if (!resolved || resolved.email !== SUPER_ADMIN_EMAIL) {
       res.status(403).json({ error: 'Session Super Admin requise.' });
@@ -846,7 +866,7 @@ export function createAdminAuthRouter() {
       user: sanitizeUserForClient(adminUser),
       totpEnabled: false,
     });
-  });
+  }));
 
   router.post('/logout', (req: Request, res: Response) => {
     const resolved = resolveSession(req);
@@ -1007,7 +1027,9 @@ export function createProtectedAdminRouter() {
   });
 
   // Créer un utilisateur ou contact en liste d'attente depuis l'administration
-  router.post('/users', async (req: Request, res: Response) => {
+  router.post(
+    '/users',
+    asyncRoute(async (req: Request, res: Response) => {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const fullName = String(req.body?.fullName || '').trim();
@@ -1095,7 +1117,7 @@ export function createProtectedAdminRouter() {
     });
 
     res.status(201).json({ success: true, user: sanitizeUserForClient(newUser) });
-  });
+  }));
 
   // Importer / synchroniser en masse des inscrits de la liste d'attente (sans écraser les comptes existants)
   router.post('/waitlist/import', (req: Request, res: Response) => {
