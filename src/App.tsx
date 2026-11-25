@@ -281,7 +281,11 @@ function MainApp() {
   const handleAuthSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     try {
-      localStorage.setItem('startbill_user', JSON.stringify(user));
+      if (user.role === 'super_admin') {
+        localStorage.removeItem('startbill_user');
+      } else {
+        localStorage.setItem('startbill_user', JSON.stringify(user));
+      }
     } catch {
       // Ignore storage errors
     }

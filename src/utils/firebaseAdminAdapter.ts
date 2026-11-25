@@ -1,6 +1,10 @@
 import {
   browserPopupRedirectResolver,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type User,
@@ -144,6 +148,189 @@ export async function signInAdminWithGoogle(): Promise<{
     return {
       ok: false,
       error: err instanceof Error ? err.message : 'Erreur lors de la connexion Google.',
+    };
+  }
+}
+
+export interface AdminEmailAuthResult {
+  ok: boolean;
+  user?: User;
+  error?: string;
+  emailProviderDisabled?: boolean;
+  needsEmailVerification?: boolean;
+  invalidCredentials?: boolean;
+  wrongEmail?: string;
+}
+
+export interface AdminCloudActivationResult {
+  ok: boolean;
+  mode?: 'created' | 'reset_sent';
+  emailProviderDisabled?: boolean;
+  message?: string;
+  error?: string;
+}
+
+export async function signInAdminWithEmailPassword(
+  email: string,
+  password: string
+): Promise<AdminEmailAuthResult> {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (cleanEmail !== SUPER_ADMIN_EMAIL) {
+    return {
+      ok: false,
+      wrongEmail: cleanEmail || 'inconnu',
+      error: `403 Forbidden : l’accès administrateur est strictement réservé à ${SUPER_ADMIN_EMAIL}.`,
+    };
+  }
+  if (!password) {
+    return {
+      ok: false,
+      invalidCredentials: true,
+      error: 'Veuillez saisir votre mot de passe administrateur.',
+    };
+  }
+
+  try {
+    const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    const fbUser = cred.user;
+    if (!fbUser.emailVerified) {
+      try {
+        await sendEmailVerification(fbUser);
+      } catch {
+        // Ignore rate-limit error if verification email was already sent recently
+      }
+      await signOut(auth);
+      return {
+        ok: false,
+        needsEmailVerification: true,
+        error: `Votre adresse courriel n’est pas encore vérifiée. Un lien de confirmation vient d’être envoyé à ${SUPER_ADMIN_EMAIL}. Cliquez dessus dans votre boîte Gmail puis reconnectez-vous.`,
+      };
+    }
+    return { ok: true, user: fbUser };
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    if (code === 'auth/operation-not-allowed') {
+      return {
+        ok: false,
+        emailProviderDisabled: true,
+        error:
+          'La connexion par courriel et mot de passe n’est pas encore activée dans Firebase Authentication.',
+      };
+    }
+    if (
+      code === 'auth/invalid-credential' ||
+      code === 'auth/user-not-found' ||
+      code === 'auth/wrong-password'
+    ) {
+      return {
+        ok: false,
+        invalidCredentials: true,
+        error:
+          'Mot de passe incorrect ou accès Cloud par mot de passe pas encore initialisé sur ce compte.',
+      };
+    }
+    if (code === 'auth/too-many-requests') {
+      return {
+        ok: false,
+        error:
+          'Trop de tentatives effectuées. Patientez quelques instants ou demandez un lien de réinitialisation.',
+      };
+    }
+    if (code === 'auth/network-request-failed') {
+      return {
+        ok: false,
+        error: 'Erreur réseau lors de la connexion. Vérifiez votre accès Internet.',
+      };
+    }
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur lors de la connexion par courriel.',
+    };
+  }
+}
+
+export async function activateOrResetAdminCloudPassword(
+  password?: string
+): Promise<AdminCloudActivationResult> {
+  if (password !== undefined) {
+    if (password.length < 8) {
+      return {
+        ok: false,
+        error:
+          'Saisissez d’abord un mot de passe d’au moins 8 caractères (idéalement 12+ avec majuscule, chiffre et symbole) dans le champ ci-dessus.',
+      };
+    }
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, SUPER_ADMIN_EMAIL, password);
+      try {
+        await sendEmailVerification(cred.user);
+      } catch {
+        // Ignore rate-limit error if verification email was sent recently
+      }
+      await signOut(auth);
+      return {
+        ok: true,
+        mode: 'created',
+        message: `Compte administrateur Cloud initialisé ! Un lien de confirmation vient d’être envoyé à ${SUPER_ADMIN_EMAIL}. Cliquez sur ce lien dans Gmail puis connectez-vous.`,
+      };
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      if (code === 'auth/operation-not-allowed') {
+        return {
+          ok: false,
+          emailProviderDisabled: true,
+          error:
+            'La méthode « E-mail/Mot de passe » doit d’abord être activée dans Firebase Authentication.',
+        };
+      }
+      if (code === 'auth/weak-password') {
+        return {
+          ok: false,
+          error: 'Mot de passe trop faible. Utilisez au moins 8 caractères plus complexes.',
+        };
+      }
+      if (code !== 'auth/email-already-in-use') {
+        return {
+          ok: false,
+          error:
+            err instanceof Error
+              ? err.message
+              : 'Impossible d’activer le mot de passe administrateur Cloud.',
+        };
+      }
+      // Si le compte existe déjà (ex: créé via Google Auth), envoi du lien officiel de définition/réinitialisation
+    }
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, SUPER_ADMIN_EMAIL);
+    return {
+      ok: true,
+      mode: 'reset_sent',
+      message: `Un lien sécurisé pour définir ou réinitialiser votre mot de passe a été envoyé à ${SUPER_ADMIN_EMAIL} (vérifiez aussi vos courriels indésirables).`,
+    };
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    if (code === 'auth/operation-not-allowed') {
+      return {
+        ok: false,
+        emailProviderDisabled: true,
+        error:
+          'La méthode « E-mail/Mot de passe » doit d’abord être activée dans Firebase Authentication.',
+      };
+    }
+    if (code === 'auth/too-many-requests') {
+      return {
+        ok: false,
+        error: 'Un courriel vient déjà d’être envoyé. Patientez quelques minutes avant de réessayer.',
+      };
+    }
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Impossible d’envoyer le courriel de réinitialisation.',
     };
   }
 }
@@ -457,7 +644,9 @@ export async function loadAdminOverviewFromFirestore(
         email: adminUser.email || SUPER_ADMIN_EMAIL,
         role: 'super_admin',
         success: true,
-        ip: 'Firebase Auth (Google)',
+        ip: adminUser.providerData?.some((p) => p.providerId === 'google.com')
+          ? 'Firebase Auth (Google)'
+          : 'Firebase Auth (Courriel)',
         browser: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 50) : 'Web',
         location: 'Cloud',
         timestamp: new Date().toISOString(),

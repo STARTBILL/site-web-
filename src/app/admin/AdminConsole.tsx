@@ -336,7 +336,7 @@ const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
       if (sessionState.authMode === 'firebase') {
         const fbUser = auth.currentUser;
         if (!fbUser || !isFirebaseSuperAdminUser(fbUser)) {
-          throw new Error('Session Cloud Google expirée. Veuillez vous reconnecter.');
+          throw new Error('Session Cloud expirée. Veuillez vous reconnecter.');
         }
         const data = await loadAdminOverviewFromFirestore(fbUser);
         setOverview(data);

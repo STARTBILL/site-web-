@@ -19,7 +19,10 @@ import {
   RegionCode,
 } from '../config/regions';
 import { useLanguage } from '../context/LanguageContext';
+import { SUPER_ADMIN_EMAIL } from '../hooks/useSuperAdmin';
+import { adminApiRequest } from '../utils/adminClient';
 import { submitUserLogin, submitUserSignup } from '../utils/authClient';
+import { signInAdminWithEmailPassword } from '../utils/firebaseAdminAdapter';
 import type { AuthUser } from './RegionBlockedScreen';
 
 interface AuthModalProps {
@@ -47,11 +50,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [region, setRegion] = useState<RegionCode>(DEFAULT_REGION_CODE);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdminGateLink, setShowAdminGateLink] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTab(initialTab);
       setError(null);
+      setShowAdminGateLink(false);
       setPassword('');
       setShowPassword(false);
     }
@@ -71,6 +76,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const switchTab = (nextTab: 'login' | 'signup') => {
     setTab(nextTab);
     setError(null);
+    setShowAdminGateLink(false);
     setPassword('');
     setShowPassword(false);
   };
@@ -78,8 +84,77 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setShowAdminGateLink(false);
     setIsLoading(true);
     try {
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanEmail === SUPER_ADMIN_EMAIL) {
+        if (!password) {
+          if (onRouteToAdmin) {
+            onClose();
+            onRouteToAdmin();
+          }
+          return;
+        }
+
+        const { status, data } = await adminApiRequest('/api/auth/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({ email: cleanEmail, password }),
+        });
+
+        if (data?.staticHostDetected || data?.isNonJson) {
+          const fbRes = await signInAdminWithEmailPassword(cleanEmail, password);
+          if (fbRes.ok && fbRes.user) {
+            onAuthSuccess({
+              id: fbRes.user.uid,
+              fullName: fbRes.user.displayName || 'Ferline Zogni — Admin STARTBILL',
+              email: fbRes.user.email || SUPER_ADMIN_EMAIL,
+              role: 'super_admin',
+              region: 'CA',
+              currency: 'CAD',
+              regionActive: true,
+            });
+            onClose();
+            onRouteToAdmin?.();
+            return;
+          }
+          setError(
+            fbRes.error ||
+              (lang === 'fr'
+                ? 'Connexion administrateur impossible.'
+                : 'Unable to sign in as admin.')
+          );
+          setShowAdminGateLink(true);
+          return;
+        }
+
+        if (
+          data?.setupRequired ||
+          data?.mustChangePassword ||
+          (data?.totpEnabled && !data?.totpVerified)
+        ) {
+          onClose();
+          onRouteToAdmin?.();
+          return;
+        }
+
+        if (status < 400 && data?.success && data?.user) {
+          onAuthSuccess(data.user);
+          onClose();
+          onRouteToAdmin?.();
+          return;
+        }
+
+        setError(
+          data?.error ||
+            (lang === 'fr'
+              ? 'Identifiants administrateur invalides.'
+              : 'Invalid admin credentials.')
+        );
+        setShowAdminGateLink(true);
+        return;
+      }
+
       const result = await submitUserLogin({ email, password });
       if (result.requiresAdminAuth && onRouteToAdmin) {
         onClose();
@@ -196,9 +271,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-lg text-xs flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-lg text-xs space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+            {showAdminGateLink && onRouteToAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onRouteToAdmin();
+                }}
+                className="text-[11px] font-semibold underline hover:text-red-900 dark:hover:text-red-100"
+              >
+                {lang === 'fr'
+                  ? 'Ouvrir l’assistant de connexion Admin →'
+                  : 'Open Admin Sign-in Assistant →'}
+              </button>
+            )}
           </div>
         )}
 

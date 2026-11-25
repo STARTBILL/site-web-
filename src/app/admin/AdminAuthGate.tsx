@@ -14,10 +14,15 @@ import {
   Copy,
   Check,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
 import { SUPER_ADMIN_EMAIL } from '../../hooks/useSuperAdmin';
 import { adminApiRequest } from '../../utils/adminClient';
-import { signInAdminWithGoogle } from '../../utils/firebaseAdminAdapter';
+import {
+  activateOrResetAdminCloudPassword,
+  signInAdminWithEmailPassword,
+  signInAdminWithGoogle,
+} from '../../utils/firebaseAdminAdapter';
 import firebaseConfig from '../../../firebase-applet-config.json';
 
 export interface AdminSessionState {
@@ -82,6 +87,8 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
+  const [emailProviderDisabled, setEmailProviderDisabled] = useState(false);
+  const [showCloudActivation, setShowCloudActivation] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
 
   const isForbiddenStandardUser =
@@ -213,16 +220,47 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     setError(null);
     setInfo(null);
     setUnauthorizedDomain(null);
+    setEmailProviderDisabled(false);
+    setShowCloudActivation(false);
     setLoading(true);
     try {
+      const cleanEmail = email.trim();
       const { status, data } = await adminApiRequest('/api/auth/admin/login', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
       if (data?.staticHostDetected || data?.isNonJson) {
-        setInfo(
-          'Utilisez le bouton « Continuer avec Google » ci-dessous pour vous connecter avec votre compte administrateur.'
-        );
+        const fbRes = await signInAdminWithEmailPassword(cleanEmail, password);
+        if (!fbRes.ok || !fbRes.user) {
+          if (fbRes.emailProviderDisabled) {
+            setEmailProviderDisabled(true);
+          } else {
+            setError(fbRes.error || 'Authentification administrateur refusée.');
+            if (fbRes.invalidCredentials) {
+              setShowCloudActivation(true);
+            }
+          }
+          return;
+        }
+        setPassword('');
+        onSessionUpdated({
+          authenticated: true,
+          setupRequired: false,
+          staticHostDetected: true,
+          authMode: 'firebase',
+          backendError: null,
+          user: {
+            id: fbRes.user.uid,
+            fullName: fbRes.user.displayName || 'Ferline Zogni — Admin STARTBILL',
+            email: fbRes.user.email || SUPER_ADMIN_EMAIL,
+            role: 'super_admin',
+            region: 'CA',
+          },
+          mustChangePassword: false,
+          totpEnabled: false,
+          totpVerified: true,
+          csrfToken: 'firebase-auth',
+        });
         return;
       }
       if (data?.setupRequired) {
@@ -251,6 +289,50 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
       });
     } catch {
       setError('Erreur lors de la connexion administrateur.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleActivateCloudPassword = async () => {
+    setError(null);
+    setInfo(null);
+    setEmailProviderDisabled(false);
+    setLoading(true);
+    try {
+      const res = await activateOrResetAdminCloudPassword(password);
+      if (res.emailProviderDisabled) {
+        setEmailProviderDisabled(true);
+        return;
+      }
+      if (!res.ok) {
+        setError(res.error || 'Impossible d’activer le mot de passe Cloud.');
+        return;
+      }
+      setShowCloudActivation(false);
+      setInfo(res.message || 'Action effectuée. Vérifiez votre boîte Gmail.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendResetEmail = async () => {
+    setError(null);
+    setInfo(null);
+    setEmailProviderDisabled(false);
+    setLoading(true);
+    try {
+      const res = await activateOrResetAdminCloudPassword();
+      if (res.emailProviderDisabled) {
+        setEmailProviderDisabled(true);
+        return;
+      }
+      if (!res.ok) {
+        setError(res.error || 'Impossible d’envoyer le lien de réinitialisation.');
+        return;
+      }
+      setShowCloudActivation(false);
+      setInfo(res.message || `Lien de réinitialisation envoyé à ${SUPER_ADMIN_EMAIL}.`);
     } finally {
       setLoading(false);
     }
@@ -377,6 +459,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   const isStaticCloudOnly = Boolean(sessionState.staticHostDetected);
   const visibleError = error || (!isStaticCloudOnly ? sessionState.backendError : null);
   const firebaseAuthSettingsUrl = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`;
+  const firebaseAuthProvidersUrl = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#071328] px-4 py-10">
@@ -463,6 +546,44 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors"
                 >
                   <span>Ouvrir Firebase Auth</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          )}
+
+          {emailProviderDisabled && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-100 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <Mail className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-semibold">
+                    Activez la connexion E-mail/Mot de passe dans Firebase
+                  </p>
+                  <p className="text-amber-900/85 dark:text-amber-200/90 leading-relaxed">
+                    Pour autoriser la connexion directe par courriel et mot de passe sur{' '}
+                    <strong>{typeof window !== 'undefined' ? window.location.hostname : 'startbill.app'}</strong> :
+                  </p>
+                </div>
+              </div>
+              <ol className="list-decimal pl-5 space-y-1 text-[11px] text-amber-900/90 dark:text-amber-200">
+                <li>
+                  Ouvrez <strong>Firebase Console</strong> → <strong>Authentication</strong> →{' '}
+                  <strong>Sign-in method</strong>.
+                </li>
+                <li>
+                  Cliquez sur <strong>Add new provider</strong> (ou <strong>E-mail/Mot de passe</strong>) et activez <strong>Email/Password</strong>, puis cliquez sur <strong>Save</strong>.
+                </li>
+                <li>Revenez ici et cliquez sur <strong>Se connecter</strong>.</li>
+              </ol>
+              <div className="pt-1">
+                <a
+                  href={firebaseAuthProvidersUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+                >
+                  <span>Ouvrir Sign-in providers</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
@@ -608,9 +729,18 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1.5">
-                    Mot de passe
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-blue-200">
+                      Mot de passe
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCloudActivation(!showCloudActivation)}
+                      className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      1re activation / Mot de passe oublié ?
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -631,6 +761,38 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {showCloudActivation && (
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-blue-950/50 border border-slate-200 dark:border-blue-800 space-y-2.5 text-xs">
+                    <p className="font-semibold text-slate-800 dark:text-blue-100">
+                      Initialiser ou réinitialiser votre accès par mot de passe
+                    </p>
+                    <p className="text-[11px] text-slate-600 dark:text-blue-300 leading-relaxed">
+                      Première connexion sur ce domaine ? Saisissez le mot de passe souhaité ci-dessus (8+ caractères), puis activez l’accès Cloud ou recevez un lien par courriel sur{' '}
+                      <span className="font-medium">{SUPER_ADMIN_EMAIL}</span>.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handleActivateCloudPassword}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60 transition-colors"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span>Activer avec ce mot de passe</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handleSendResetEmail}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-semibold border border-slate-300 dark:border-blue-700 bg-white dark:bg-blue-950 text-slate-700 dark:text-blue-100 hover:bg-slate-100 dark:hover:bg-blue-900 disabled:opacity-60 transition-colors"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Recevoir un lien par courriel</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <button
                   type="submit"
