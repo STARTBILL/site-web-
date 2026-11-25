@@ -17,6 +17,12 @@ import { isRegionActive } from './config/regions';
 import { AdminConsole } from './app/admin/AdminConsole';
 import type { AdminSectionId } from './app/admin/types';
 import { adminApiRequest } from './utils/adminClient';
+import {
+  isFirebaseSuperAdminUser,
+  loadPublicConfigFromFirestore,
+  signOutFirebaseAdmin,
+  subscribeFirebaseAdminAuth,
+} from './utils/firebaseAdminAdapter';
 import { Wrench } from 'lucide-react';
 
 // Dedicated Pages
@@ -130,14 +136,26 @@ function MainApp() {
 
   const loadPublicConfig = useCallback(() => {
     fetch('/api/public/config')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && typeof data === 'object') {
+      .then(async (r) => {
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        if (!ct.includes('application/json')) return null;
+        return r.json();
+      })
+      .then(async (data) => {
+        if (data && typeof data === 'object' && data.siteName) {
           setPublicConfig(data);
+          return;
+        }
+        const fbConfig = await loadPublicConfigFromFirestore();
+        if (fbConfig) {
+          setPublicConfig(fbConfig);
         }
       })
-      .catch(() => {
-        // Fallback silently on network failure
+      .catch(async () => {
+        const fbConfig = await loadPublicConfigFromFirestore();
+        if (fbConfig) {
+          setPublicConfig(fbConfig);
+        }
       });
   }, []);
 
@@ -145,7 +163,7 @@ function MainApp() {
     loadPublicConfig();
   }, [loadPublicConfig]);
 
-  // Synchroniser la session Super Admin si elle existe déjà
+  // Synchroniser la session Super Admin (Node.js ou Firebase Auth) si elle existe déjà
   useEffect(() => {
     adminApiRequest('/api/auth/admin/session')
       .then(({ data }) => {
@@ -161,6 +179,25 @@ function MainApp() {
       .catch(() => {
         // Ignore silent session check failure
       });
+
+    const unsub = subscribeFirebaseAdminAuth((fbUser) => {
+      if (isFirebaseSuperAdminUser(fbUser) && fbUser) {
+        setCurrentUser((prev) =>
+          prev?.role === 'super_admin'
+            ? prev
+            : {
+                id: fbUser.uid,
+                fullName: fbUser.displayName || 'Ferline Zogni — Admin STARTBILL',
+                email: fbUser.email || 'contact.startbill@gmail.com',
+                role: 'super_admin',
+                region: 'CA',
+                currency: 'CAD',
+                regionActive: true,
+              }
+        );
+      }
+    });
+    return () => unsub();
   }, []);
 
   // Initialize theme
@@ -252,6 +289,11 @@ function MainApp() {
 
   const handleLogout = async () => {
     if (currentUser?.role === 'super_admin') {
+      try {
+        await signOutFirebaseAdmin();
+      } catch {
+        // Ignore Firebase logout failure
+      }
       try {
         await adminApiRequest('/api/auth/admin/logout', {
           method: 'POST',

@@ -1,81 +1,250 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     // =========================================================================
-    // Fonctions RBAC strictes STARTBILL (LPRPDE & Protection Super Admin)
+    // Global Helpers
     // =========================================================================
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isSuperAdmin() {
-      return isAuthenticated()
-        && request.auth.token.email == 'contact.startbill@gmail.com'
-        && request.auth.token.email_verified == true
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
-    function isProtectedSuperAdminDoc(userData) {
-      return userData.email == 'contact.startbill@gmail.com'
-        || userData.role == 'super_admin'
-        || userData.immutable == true;
+    function isAdmin() {
+      return isVerifiedUser() &&
+        request.auth.token.email == 'contact.startbill@gmail.com';
     }
 
-    // Collection Utilisateurs
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isProtectedSuperAdminDoc(data) {
+      return data.email == 'contact.startbill@gmail.com' ||
+        data.role == 'super_admin' ||
+        (data.keys().hasAny(['immutable']) && data.immutable == true);
+    }
+
+    // =========================================================================
+    // Validation Blueprints
+    // =========================================================================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'role', 'region', 'plan', 'status', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'fullName', 'role', 'region', 'plan', 'status', 'profile', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+        data.role in ['user', 'pro', 'admin', 'super_admin'] &&
+        data.region in ['CA', 'AF', 'HT'] &&
+        data.plan in ['Free', 'Start', 'Pro'] &&
+        data.status in ['actif', 'suspendu'] &&
+        (!data.keys().hasAny(['profile']) || (data.profile is string && data.profile.size() <= 64)) &&
+        data.createdAt is timestamp &&
+        (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
+    }
+
+    function isValidWaitlistEntry(data) {
+      return data.keys().hasAll(['fullName', 'email', 'profile', 'region', 'waitlistStatus', 'createdAt']) &&
+        data.keys().hasOnly(['fullName', 'email', 'profile', 'region', 'waitlistStatus', 'adminNotes', 'invitedAt', 'createdAt', 'updatedAt']) &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.profile is string && data.profile.size() >= 1 && data.profile.size() <= 64 &&
+        data.region in ['CA', 'AF', 'HT'] &&
+        data.waitlistStatus in ['en_attente', 'invite', 'converti'] &&
+        (!data.keys().hasAny(['adminNotes']) || (data.adminNotes is string && data.adminNotes.size() <= 500)) &&
+        (!data.keys().hasAny(['invitedAt']) || (data.invitedAt is string && data.invitedAt.size() <= 64)) &&
+        data.createdAt is timestamp &&
+        (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
+    }
+
+    function isValidManagedUser(data) {
+      return data.keys().hasAll(['id', 'fullName', 'email', 'role', 'region', 'plan', 'status', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'fullName', 'email', 'role', 'region', 'plan', 'status', 'profile', 'currency', 'emailVerified', 'source', 'waitlistStatus', 'adminNotes', 'invitedAt', 'immutable', 'createdAt', 'updatedAt']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.role in ['user', 'pro', 'admin', 'super_admin'] &&
+        data.region in ['CA', 'AF', 'HT'] &&
+        data.plan in ['Free', 'Start', 'Pro'] &&
+        data.status in ['actif', 'suspendu'] &&
+        (!data.keys().hasAny(['profile']) || (data.profile is string && data.profile.size() <= 64)) &&
+        (!data.keys().hasAny(['currency']) || (data.currency in ['CAD', 'XOF', 'HTG'])) &&
+        (!data.keys().hasAny(['emailVerified']) || data.emailVerified is bool) &&
+        (!data.keys().hasAny(['source']) || (data.source in ['waitlist', 'signup', 'admin', 'seed'])) &&
+        (!data.keys().hasAny(['waitlistStatus']) || (data.waitlistStatus in ['en_attente', 'invite', 'converti'])) &&
+        (!data.keys().hasAny(['adminNotes']) || (data.adminNotes is string && data.adminNotes.size() <= 500)) &&
+        (!data.keys().hasAny(['invitedAt']) || (data.invitedAt is string && data.invitedAt.size() <= 64)) &&
+        (!data.keys().hasAny(['immutable']) || data.immutable is bool) &&
+        data.createdAt is string && data.createdAt.size() <= 64 &&
+        (!data.keys().hasAny(['updatedAt']) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorEmail', 'action', 'target', 'details', 'createdAt']) &&
+        data.keys().hasOnly(['actorEmail', 'action', 'target', 'details', 'createdAt']) &&
+        data.actorEmail is string && data.actorEmail.size() >= 3 && data.actorEmail.size() <= 200 &&
+        data.action is string && data.action.size() >= 1 && data.action.size() <= 80 &&
+        data.target is string && data.target.size() >= 1 && data.target.size() <= 200 &&
+        data.details is string && data.details.size() >= 1 && data.details.size() <= 500 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidPlatformConfig(data) {
+      return data.keys().hasAll(['siteName', 'maintenanceMode', 'maintenanceMessage']) &&
+        data.keys().hasOnly(['siteName', 'maintenanceMode', 'maintenanceMessage', 'heroTitleLine1', 'heroTitleLine2', 'heroSubtitle', 'marqueeText', 'updatedAt']) &&
+        data.siteName is string && data.siteName.size() >= 1 && data.siteName.size() <= 80 &&
+        data.maintenanceMode is bool &&
+        data.maintenanceMessage is string && data.maintenanceMessage.size() <= 500 &&
+        (!data.keys().hasAny(['heroTitleLine1']) || (data.heroTitleLine1 is string && data.heroTitleLine1.size() <= 160)) &&
+        (!data.keys().hasAny(['heroTitleLine2']) || (data.heroTitleLine2 is string && data.heroTitleLine2.size() <= 160)) &&
+        (!data.keys().hasAny(['heroSubtitle']) || (data.heroSubtitle is string && data.heroSubtitle.size() <= 300)) &&
+        (!data.keys().hasAny(['marqueeText']) || (data.marqueeText is string && data.marqueeText.size() <= 600)) &&
+        (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
+    }
+
+    // =========================================================================
+    // Health Check Collection
+    // =========================================================================
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
+    }
+
+    // =========================================================================
+    // Users Collection
+    // =========================================================================
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin() || (isVerifiedUser() && existing().uid == request.auth.uid);
 
-      // L'utilisateur peut créer son propre profil standard (role != super_admin)
-      allow create: if isAuthenticated()
-        && request.auth.uid == userId
-        && request.resource.data.role == 'user'
-        && request.resource.data.region in ['CA'];
+      allow create: if isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        (
+          (isOwner(userId) &&
+            incoming().uid == request.auth.uid &&
+            incoming().email == request.auth.token.email &&
+            incoming().role == 'user' &&
+            incoming().plan == 'Free' &&
+            incoming().status == 'actif' &&
+            incoming().region == 'CA') ||
+          isAdmin()
+        );
 
-      // Mise à jour par le propriétaire (sans élévation de privilèges) ou par le Super Admin
-      allow update: if isSuperAdmin()
-        || (isAuthenticated()
-            && request.auth.uid == userId
-            && request.resource.data.role == resource.data.role
-            && request.resource.data.email == resource.data.email);
+      allow update: if isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (isOwner(userId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'profile', 'updatedAt']) &&
+            incoming().updatedAt == request.time) ||
+          (isAdmin() &&
+            !isProtectedSuperAdminDoc(existing()) &&
+            incoming().role in ['user', 'pro', 'admin'] &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'role', 'region', 'plan', 'status', 'profile', 'updatedAt']) &&
+            incoming().updatedAt == request.time)
+        );
 
-      // INTERDICTION ABSOLUE de supprimer le compte Super Admin (même par lui-même via l'UI)
-      allow delete: if isSuperAdmin() && !isProtectedSuperAdminDoc(resource.data);
+      allow delete: if isValidId(userId) && isAdmin() && !isProtectedSuperAdminDoc(existing());
     }
 
-    // Toutes les collections d'administration (/admin/*)
-    match /admin/{document=**} {
-      allow read, write: if isSuperAdmin();
+    // =========================================================================
+    // Waitlist Entries (Public submission, Super Admin management only)
+    // =========================================================================
+    match /waitlist_entries/{entryId} {
+      allow get: if isValidId(entryId) && isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isValidId(entryId) &&
+        isValidWaitlistEntry(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().region == 'CA' &&
+        incoming().waitlistStatus == 'en_attente' &&
+        incoming().email != 'contact.startbill@gmail.com' &&
+        !incoming().keys().hasAny(['adminNotes', 'invitedAt']);
+
+      allow update: if isValidId(entryId) &&
+        isAdmin() &&
+        isValidWaitlistEntry(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'profile', 'region', 'waitlistStatus', 'adminNotes', 'invitedAt', 'updatedAt']) &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(entryId) && isAdmin();
     }
 
-    // Journaux d'audit : lecture/création par Super Admin uniquement, jamais modifiables ni supprimables
+    // =========================================================================
+    // Managed Users Directory (Super Admin only)
+    // =========================================================================
+    match /managed_users/{docId} {
+      allow get: if isValidId(docId) && isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isValidId(docId) &&
+        isAdmin() &&
+        isValidManagedUser(incoming());
+
+      allow update: if isValidId(docId) &&
+        isAdmin() &&
+        isValidManagedUser(incoming()) &&
+        !isProtectedSuperAdminDoc(existing()) &&
+        incoming().id == existing().id &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().role in ['user', 'pro', 'admin'] &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'role', 'region', 'plan', 'status', 'profile', 'currency', 'emailVerified', 'source', 'waitlistStatus', 'adminNotes', 'invitedAt', 'updatedAt']);
+
+      allow delete: if isValidId(docId) && isAdmin() && !isProtectedSuperAdminDoc(existing());
+    }
+
+    // =========================================================================
+    // Audit Logs (Append-only for Super Admin)
+    // =========================================================================
     match /audit_logs/{logId} {
-      allow read, create: if isSuperAdmin();
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId) &&
+        isAdmin() &&
+        isValidAuditLog(incoming()) &&
+        incoming().createdAt == request.time;
       allow update, delete: if false;
     }
 
-    // Paramètres plateforme & CMS
-    match /platform_settings/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
-    }
-
-    match /cms_content/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin();
-    }
-
-    // Factures et abonnements isolés par propriétaire ou Super Admin
-    match /invoices/{invoiceId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isSuperAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSuperAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow delete: if isSuperAdmin();
-    }
-
-    match /tickets/{ticketId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isSuperAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSuperAdmin();
+    // =========================================================================
+    // Public Platform Config (Read public doc only, Write Super Admin only)
+    // =========================================================================
+    match /platform_config/{docId} {
+      allow get: if docId == 'public';
+      allow list: if false;
+      allow create: if docId == 'public' &&
+        isAdmin() &&
+        isValidPlatformConfig(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow update: if docId == 'public' &&
+        isAdmin() &&
+        isValidPlatformConfig(incoming()) &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['siteName', 'maintenanceMode', 'maintenanceMessage', 'heroTitleLine1', 'heroTitleLine2', 'heroSubtitle', 'marqueeText', 'updatedAt']);
       allow delete: if false;
     }
   }

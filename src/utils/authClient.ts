@@ -7,6 +7,7 @@ import {
   type RegionCode,
 } from '../config/regions';
 import type { AuthUser } from '../components/RegionBlockedScreen';
+import { saveWaitlistToFirestore } from './firebaseAdminAdapter';
 
 const LOCAL_ACCOUNTS_KEY = 'startbill_local_accounts_v1';
 const LOCAL_WAITLIST_KEY = 'startbill_waitlist';
@@ -338,6 +339,13 @@ export async function submitWaitlistEntry(params: {
   } catch {
     // Fallback local si hébergement statique sans Node backend
   }
+
+  await saveWaitlistToFirestore({
+    fullName,
+    email: cleanEmail,
+    profile: params.profile,
+    region: params.region,
+  });
 
   try {
     const existing = JSON.parse(localStorage.getItem(LOCAL_WAITLIST_KEY) || '[]');

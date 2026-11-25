@@ -1,0 +1,12 @@
+{
+  "projectId": "startbill-dev",
+  "appId": "1:544242389255:web:63fa6c7bccaa4d539df5a2",
+  "apiKey": "AIzaSyAxH4TRX7Uh9a1Ur5Iectfpm6vJyg0zzzI",
+  "authDomain": "startbill-dev.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-startbillgestion-5c461143-8b01-44d8-8544-c739d76763d2",
+  "storageBucket": "startbill-dev.firebasestorage.app",
+  "messagingSenderId": "544242389255",
+  "measurementId": "",
+  "oAuthClientId": "544242389255-60u258g4fu5tqajs5ctu96m2013sck4u.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}

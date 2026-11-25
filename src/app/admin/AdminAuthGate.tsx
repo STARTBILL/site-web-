@@ -14,11 +14,14 @@ import {
 } from 'lucide-react';
 import { SUPER_ADMIN_EMAIL } from '../../hooks/useSuperAdmin';
 import { adminApiRequest } from '../../utils/adminClient';
+import { signInAdminWithGoogle } from '../../utils/firebaseAdminAdapter';
 
 export interface AdminSessionState {
   authenticated: boolean;
   setupRequired?: boolean;
   envManaged?: boolean;
+  staticHostDetected?: boolean;
+  authMode?: 'node' | 'firebase';
   backendError?: string | null;
   user: {
     id: string;
@@ -306,6 +309,44 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setInfo(null);
+    setLoading(true);
+    try {
+      const res = await signInAdminWithGoogle();
+      if (!res.ok || !res.user) {
+        setError(res.error || 'Connexion Google refusée.');
+        return;
+      }
+      onSessionUpdated({
+        authenticated: true,
+        setupRequired: false,
+        staticHostDetected: sessionState.staticHostDetected,
+        authMode: 'firebase',
+        backendError: null,
+        user: {
+          id: res.user.uid,
+          fullName: res.user.displayName || 'Ferline Zogni — Admin STARTBILL',
+          email: res.user.email || SUPER_ADMIN_EMAIL,
+          role: 'super_admin',
+          region: 'CA',
+        },
+        mustChangePassword: false,
+        totpEnabled: false,
+        totpVerified: true,
+        csrfToken: 'firebase-auth',
+      });
+    } catch {
+      setError('Erreur lors de la connexion Google Administrateur.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isStaticCloudOnly = Boolean(sessionState.staticHostDetected);
+  const visibleError = error || (!isStaticCloudOnly ? sessionState.backendError : null);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#071328] p-4">
       <div className="w-full max-w-md bg-white dark:bg-[#0c1e3d] border border-slate-200 dark:border-blue-900 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
@@ -333,13 +374,13 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           </button>
         </div>
 
-        {(error || sessionState.backendError) && (
+        {visibleError && (
           <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 space-y-2">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error || sessionState.backendError}</span>
+              <span>{visibleError}</span>
             </div>
-            {sessionState.backendError && onRetrySession && (
+            {!isStaticCloudOnly && sessionState.backendError && onRetrySession && (
               <button
                 type="button"
                 onClick={onRetrySession}
@@ -358,8 +399,8 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           </div>
         )}
 
-        {/* ÉTAPE 0 : Activation initiale du compte Super Admin (première utilisation) */}
-        {!sessionState.authenticated && sessionState.setupRequired && (
+        {/* ÉTAPE 0 : Activation initiale du compte Super Admin (première utilisation Node.js) */}
+        {!sessionState.authenticated && !isStaticCloudOnly && sessionState.setupRequired && (
           <form onSubmit={handleSetupClaim} className="space-y-4">
             <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
@@ -452,8 +493,8 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           </form>
         )}
 
-        {/* ÉTAPE 1 : Connexion Email + Mot de passe */}
-        {!sessionState.authenticated && !sessionState.setupRequired && (
+        {/* ÉTAPE 1 : Connexion Email + Mot de passe (lorsque backend Node actif) */}
+        {!sessionState.authenticated && !isStaticCloudOnly && !sessionState.setupRequired && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
@@ -503,6 +544,74 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
               <span>{loading ? 'Vérification...' : 'Se connecter à l’administration'}</span>
             </button>
           </form>
+        )}
+
+        {/* Connexion Cloud Google / Firebase (fonctionne en mode statique Hostinger ET avec Node.js) */}
+        {!sessionState.authenticated && (
+          <div className="space-y-3">
+            {isStaticCloudOnly ? (
+              <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <p className="font-semibold">Connexion Cloud Administrateur active</p>
+                  <p className="mt-0.5 text-blue-800/80 dark:text-blue-300">
+                    Connectez-vous avec votre compte Google autorisé (<span className="font-semibold">{SUPER_ADMIN_EMAIL}</span>) pour gérer vos utilisateurs et votre liste d’attente en temps réel.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="relative flex items-center py-1">
+                <div className="flex-grow border-t border-slate-200 dark:border-blue-900" />
+                <span className="mx-3 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-blue-400">
+                  ou
+                </span>
+                <div className="flex-grow border-t border-slate-200 dark:border-blue-900" />
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-sm font-semibold border border-slate-300 dark:border-blue-700 bg-white dark:bg-blue-950/60 text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-blue-900/60 disabled:opacity-60 transition-colors shadow-xs"
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
+                />
+              </svg>
+              <span>
+                {loading
+                  ? 'Connexion en cours...'
+                  : 'Se connecter avec Google (contact.startbill@gmail.com)'}
+              </span>
+            </button>
+
+            {isStaticCloudOnly && onRetrySession && (
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={onRetrySession}
+                  className="text-[11px] font-medium text-slate-500 dark:text-blue-300 hover:underline"
+                >
+                  Revérifier la disponibilité du serveur Node.js
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* ÉTAPE 2 : Changement obligatoire du mot de passe si demandé */}

@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile registered via Firebase Auth",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["user", "pro", "admin", "super_admin"] },
+        "region": { "type": "string", "enum": ["CA", "AF", "HT"] },
+        "plan": { "type": "string", "enum": ["Free", "Start", "Pro"] },
+        "status": { "type": "string", "enum": ["actif", "suspendu"] },
+        "profile": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "fullName", "role", "region", "plan", "status", "createdAt"]
+    },
+    "WaitlistEntry": {
+      "title": "WaitlistEntry",
+      "description": "Waitlist lead submitted from the landing page or imported by Super Admin",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "profile": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "region": { "type": "string", "enum": ["CA", "AF", "HT"] },
+        "waitlistStatus": { "type": "string", "enum": ["en_attente", "invite", "converti"] },
+        "adminNotes": { "type": "string", "maxLength": 500 },
+        "invitedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "email", "profile", "region", "waitlistStatus", "createdAt"]
+    },
+    "ManagedUser": {
+      "title": "ManagedUser",
+      "description": "Platform user or waitlist record managed by the Super Administrator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "role": { "type": "string", "enum": ["user", "pro", "admin", "super_admin"] },
+        "region": { "type": "string", "enum": ["CA", "AF", "HT"] },
+        "plan": { "type": "string", "enum": ["Free", "Start", "Pro"] },
+        "status": { "type": "string", "enum": ["actif", "suspendu"] },
+        "profile": { "type": "string", "maxLength": 64 },
+        "currency": { "type": "string", "enum": ["CAD", "XOF", "HTG"] },
+        "emailVerified": { "type": "boolean" },
+        "source": { "type": "string", "enum": ["waitlist", "signup", "admin", "seed"] },
+        "waitlistStatus": { "type": "string", "enum": ["en_attente", "invite", "converti"] },
+        "adminNotes": { "type": "string", "maxLength": 500 },
+        "invitedAt": { "type": "string", "maxLength": 64 },
+        "immutable": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "fullName", "email", "role", "region", "plan", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Append-only security and administration audit log",
+      "type": "object",
+      "properties": {
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "action": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "target": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "details": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorEmail", "action", "target", "details", "createdAt"]
+    },
+    "PlatformConfig": {
+      "title": "PlatformConfig",
+      "description": "Public CMS and maintenance configuration managed by Super Admin",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "maintenanceMode": { "type": "boolean" },
+        "maintenanceMessage": { "type": "string", "maxLength": 500 },
+        "heroTitleLine1": { "type": "string", "maxLength": 160 },
+        "heroTitleLine2": { "type": "string", "maxLength": 160 },
+        "heroSubtitle": { "type": "string", "maxLength": 300 },
+        "marqueeText": { "type": "string", "maxLength": 600 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["siteName", "maintenanceMode", "maintenanceMessage"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated user profiles isolated by UID or readable by Super Admin"
+    },
+    "/waitlist_entries/{entryId}": {
+      "schema": { "$ref": "#/entities/WaitlistEntry" },
+      "description": "Public waitlist submissions readable and manageable only by Super Admin"
+    },
+    "/managed_users/{docId}": {
+      "schema": { "$ref": "#/entities/ManagedUser" },
+      "description": "Admin directory of active users and waitlist leads"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only audit trail for Super Admin actions"
+    },
+    "/platform_config/{docId}": {
+      "schema": { "$ref": "#/entities/PlatformConfig" },
+      "description": "Public platform configuration writable only by Super Admin"
+    }
+  }
+}

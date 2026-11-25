@@ -1,13 +1,27 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
+import { RefreshCw, Clock, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { AdminSidebar, ADMIN_NAV_ITEMS } from './AdminSidebar';
 import { AdminAuthGate, type AdminSessionState } from './AdminAuthGate';
-import { useSuperAdmin, useIdleLogout } from '../../hooks/useSuperAdmin';
+import { SUPER_ADMIN_EMAIL, useSuperAdmin, useIdleLogout } from '../../hooks/useSuperAdmin';
 import {
   adminApiRequest,
   downloadAdminCsv,
   readLocalWaitlistCandidates,
 } from '../../utils/adminClient';
+import { auth } from '../../firebase';
+import {
+  createManagedUserInFirestore,
+  deleteManagedUserInFirestore,
+  exportUsersCsvLocally,
+  importWaitlistInFirestore,
+  inviteManagedUserInFirestore,
+  isFirebaseSuperAdminUser,
+  loadAdminOverviewFromFirestore,
+  signOutFirebaseAdmin,
+  subscribeFirebaseAdminAuth,
+  updateManagedUserInFirestore,
+  updatePlatformConfigInFirestore,
+} from '../../utils/firebaseAdminAdapter';
 import type { AdminOverviewData, AdminSectionId } from './types';
 
 import { DashboardSection } from './sections/DashboardSection';
@@ -23,6 +37,74 @@ import { SettingsSection } from './sections/SettingsSection';
 import { AnalyticsSection } from './sections/AnalyticsSection';
 import { AdminAccountSection } from './sections/AdminAccountSection';
 
+interface AdminErrorBoundaryProps {
+  onExitAdmin: () => void;
+  children: ReactNode;
+}
+
+interface AdminErrorBoundaryState {
+  hasError: boolean;
+  message: string;
+}
+
+class AdminErrorBoundary extends Component<AdminErrorBoundaryProps, AdminErrorBoundaryState> {
+  state: AdminErrorBoundaryState = { hasError: false, message: '' };
+
+  static getDerivedStateFromError(error: Error): AdminErrorBoundaryState {
+    let message = error.message || 'Une erreur inattendue est survenue.';
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed && typeof parsed === 'object' && parsed.error) {
+        message = `${parsed.error}${parsed.path ? ` (${parsed.path})` : ''}`;
+      }
+    } catch {
+      // Keep raw message
+    }
+    return { hasError: true, message };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('AdminErrorBoundary:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#071328] p-6">
+          <div className="w-full max-w-md bg-white dark:bg-[#0c1e3d] border border-red-200 dark:border-red-900 rounded-2xl p-6 text-center space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 flex items-center justify-center text-red-600 dark:text-red-400">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Erreur dans la console administrateur
+            </h2>
+            <p className="text-xs text-slate-600 dark:text-blue-200 break-words">
+              {this.state.message}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center pt-1">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, message: '' })}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Réessayer
+              </button>
+              <button
+                type="button"
+                onClick={this.props.onExitAdmin}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 dark:text-blue-200 border border-slate-200 dark:border-blue-800"
+              >
+                Retour à l’accueil
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 interface AdminConsoleProps {
   section: AdminSectionId;
   onSelectSection: (section: AdminSectionId) => void;
@@ -33,7 +115,7 @@ interface AdminConsoleProps {
   onAdminSessionUserChange?: (user: AdminSessionState['user'] | null) => void;
 }
 
-export const AdminConsole: React.FC<AdminConsoleProps> = ({
+const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
   section,
   onSelectSection,
   onExitAdmin,
@@ -77,43 +159,123 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     setCheckingSession(true);
     try {
       const { status, data } = await adminApiRequest('/api/auth/admin/session');
-      if (!data) return;
+      const staticHostDetected = Boolean(data?.staticHostDetected);
+      const fbUser = auth.currentUser;
+
+      if (data?.authenticated) {
+        const next: AdminSessionState = {
+          authenticated: true,
+          setupRequired: Boolean(data.setupRequired),
+          envManaged: Boolean(data.envManaged),
+          staticHostDetected,
+          authMode: 'node',
+          backendError: null,
+          user: data.user || null,
+          mustChangePassword: Boolean(data.mustChangePassword),
+          totpEnabled: Boolean(data.totpEnabled),
+          totpVerified: Boolean(data.totpVerified),
+          csrfToken: data.csrfToken || '',
+        };
+        setSessionState(next);
+        onAdminSessionUserChangeRef.current?.(
+          !next.totpEnabled || next.totpVerified ? next.user : null
+        );
+        return;
+      }
+
+      if (isFirebaseSuperAdminUser(fbUser) && fbUser) {
+        const fbAdminUser = {
+          id: fbUser.uid,
+          fullName: fbUser.displayName || 'Ferline Zogni — Admin STARTBILL',
+          email: fbUser.email || SUPER_ADMIN_EMAIL,
+          role: 'super_admin',
+          region: 'CA',
+        };
+        setSessionState({
+          authenticated: true,
+          setupRequired: false,
+          staticHostDetected,
+          authMode: 'firebase',
+          backendError: null,
+          user: fbAdminUser,
+          mustChangePassword: false,
+          totpEnabled: false,
+          totpVerified: true,
+          csrfToken: 'firebase-auth',
+        });
+        onAdminSessionUserChangeRef.current?.(fbAdminUser);
+        return;
+      }
+
       const backendError =
-        data?.isNonJson || status === 0 || status >= 500
-          ? data.error || 'Serveur d’administration inaccessible.'
+        !staticHostDetected && (data?.isNonJson || status === 0 || status >= 500)
+          ? data?.error || 'Serveur d’administration inaccessible.'
           : null;
 
-      const next: AdminSessionState = {
-        authenticated: Boolean(data.authenticated),
-        setupRequired: Boolean(data.setupRequired),
-        envManaged: Boolean(data.envManaged),
+      setSessionState({
+        authenticated: false,
+        setupRequired: Boolean(data?.setupRequired),
+        envManaged: Boolean(data?.envManaged),
+        staticHostDetected,
+        authMode: undefined,
         backendError,
-        user: data.user || null,
-        mustChangePassword: Boolean(data.mustChangePassword),
-        totpEnabled: Boolean(data.totpEnabled),
-        totpVerified: Boolean(data.totpVerified),
-        csrfToken: data.csrfToken || '',
-      };
-      setSessionState(next);
-      onAdminSessionUserChangeRef.current?.(
-        next.authenticated && (!next.totpEnabled || next.totpVerified) ? next.user : null
-      );
+        user: null,
+        mustChangePassword: false,
+        totpEnabled: false,
+        totpVerified: false,
+        csrfToken: data?.csrfToken || '',
+      });
+      onAdminSessionUserChangeRef.current?.(null);
     } catch {
       setSessionState((prev) => ({
         ...prev,
-        backendError: 'Impossible de vérifier la session administrateur.',
+        staticHostDetected: true,
+        backendError: null,
       }));
     } finally {
       setCheckingSession(false);
     }
   }, []);
 
-  // Vérifier la session admin existante au montage uniquement
+  // Vérifier la session admin existante au montage et écouter Firebase Auth
   useEffect(() => {
     checkAdminSession();
+    const unsubscribe = subscribeFirebaseAdminAuth((fbUser) => {
+      if (isFirebaseSuperAdminUser(fbUser) && fbUser) {
+        setSessionState((prev) => {
+          if (prev.authenticated && prev.authMode === 'node') return prev;
+          const fbAdminUser = {
+            id: fbUser.uid,
+            fullName: fbUser.displayName || 'Ferline Zogni — Admin STARTBILL',
+            email: fbUser.email || SUPER_ADMIN_EMAIL,
+            role: 'super_admin',
+            region: 'CA',
+          };
+          onAdminSessionUserChangeRef.current?.(fbAdminUser);
+          return {
+            authenticated: true,
+            setupRequired: false,
+            staticHostDetected: prev.staticHostDetected,
+            authMode: 'firebase',
+            backendError: null,
+            user: fbAdminUser,
+            mustChangePassword: false,
+            totpEnabled: false,
+            totpVerified: true,
+            csrfToken: 'firebase-auth',
+          };
+        });
+      }
+    });
+    return () => unsubscribe();
   }, [checkAdminSession]);
 
   const handleLogout = useCallback(async () => {
+    try {
+      await signOutFirebaseAdmin();
+    } catch {
+      // Ignore Firebase sign-out error
+    }
     try {
       await adminApiRequest('/api/auth/admin/logout', {
         method: 'POST',
@@ -166,17 +328,35 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     [sessionState.csrfToken, handleLogout]
   );
 
+  const isFirebaseMode = sessionState.authMode === 'firebase';
+
   const loadOverview = useCallback(async () => {
     setLoadingData(true);
     try {
-      const data = await adminFetch('/api/admin/overview');
-      setOverview(data);
+      if (sessionState.authMode === 'firebase') {
+        const fbUser = auth.currentUser;
+        if (!fbUser || !isFirebaseSuperAdminUser(fbUser)) {
+          throw new Error('Session Cloud Google expirée. Veuillez vous reconnecter.');
+        }
+        const data = await loadAdminOverviewFromFirestore(fbUser);
+        setOverview(data);
+      } else {
+        const data = await adminFetch('/api/admin/overview');
+        setOverview(data);
+      }
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : 'Erreur de chargement');
+      let msg = err instanceof Error ? err.message : 'Erreur de chargement';
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed?.error) msg = parsed.error;
+      } catch {
+        // Keep plain message
+      }
+      notify('err', msg);
     } finally {
       setLoadingData(false);
     }
-  }, [adminFetch]);
+  }, [adminFetch, sessionState.authMode]);
 
   useEffect(() => {
     if (isFullyUnlocked) {
@@ -310,14 +490,25 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   localWaitlistCount={unsyncedLocalWaitlist.length}
                   onSyncLocalWaitlist={async () => {
                     try {
-                      const res = await adminFetch('/api/admin/waitlist/import', {
-                        method: 'POST',
-                        body: JSON.stringify({ entries: unsyncedLocalWaitlist }),
-                      });
-                      notify(
-                        'ok',
-                        `${res.importedCount} contact(s) de la liste d’attente synchronisé(s).`
-                      );
+                      if (isFirebaseMode) {
+                        const res = await importWaitlistInFirestore(
+                          overview.users,
+                          unsyncedLocalWaitlist
+                        );
+                        notify(
+                          'ok',
+                          `${res.importedCount} contact(s) de la liste d’attente synchronisé(s).`
+                        );
+                      } else {
+                        const res = await adminFetch('/api/admin/waitlist/import', {
+                          method: 'POST',
+                          body: JSON.stringify({ entries: unsyncedLocalWaitlist }),
+                        });
+                        notify(
+                          'ok',
+                          `${res.importedCount} contact(s) de la liste d’attente synchronisé(s).`
+                        );
+                      }
                       await loadOverview();
                     } catch (e) {
                       notify('err', e instanceof Error ? e.message : 'Erreur de synchronisation');
@@ -325,10 +516,14 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   }}
                   onCreateUser={async (payload) => {
                     try {
-                      await adminFetch('/api/admin/users', {
-                        method: 'POST',
-                        body: JSON.stringify(payload),
-                      });
+                      if (isFirebaseMode) {
+                        await createManagedUserInFirestore(payload);
+                      } else {
+                        await adminFetch('/api/admin/users', {
+                          method: 'POST',
+                          body: JSON.stringify(payload),
+                        });
+                      }
                       notify('ok', 'Contact / utilisateur enregistré.');
                       await loadOverview();
                     } catch (e) {
@@ -337,10 +532,16 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   }}
                   onUpdateUser={async (userId, payload) => {
                     try {
-                      await adminFetch(`/api/admin/users/${userId}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify(payload),
-                      });
+                      if (isFirebaseMode) {
+                        const targetUser = overview.users.find((u) => u.id === userId);
+                        if (!targetUser) throw new Error('Utilisateur introuvable.');
+                        await updateManagedUserInFirestore(targetUser, payload);
+                      } else {
+                        await adminFetch(`/api/admin/users/${userId}`, {
+                          method: 'PATCH',
+                          body: JSON.stringify(payload),
+                        });
+                      }
                       notify('ok', 'Utilisateur mis à jour.');
                       await loadOverview();
                     } catch (e) {
@@ -349,9 +550,15 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   }}
                   onInviteWaitlistUser={async (userId) => {
                     try {
-                      await adminFetch(`/api/admin/users/${userId}/invite`, {
-                        method: 'POST',
-                      });
+                      if (isFirebaseMode) {
+                        const targetUser = overview.users.find((u) => u.id === userId);
+                        if (!targetUser) throw new Error('Contact introuvable.');
+                        await inviteManagedUserInFirestore(targetUser);
+                      } else {
+                        await adminFetch(`/api/admin/users/${userId}/invite`, {
+                          method: 'POST',
+                        });
+                      }
                       notify('ok', 'Invitation liste d’attente enregistrée.');
                       await loadOverview();
                     } catch (e) {
@@ -360,14 +567,22 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   }}
                   onImportWaitlist={async (entries) => {
                     try {
-                      const res = await adminFetch('/api/admin/waitlist/import', {
-                        method: 'POST',
-                        body: JSON.stringify({ entries }),
-                      });
-                      notify(
-                        'ok',
-                        `${res.importedCount} contact(s) importé(s), ${res.skippedCount} déjà présent(s).`
-                      );
+                      if (isFirebaseMode) {
+                        const res = await importWaitlistInFirestore(overview.users, entries);
+                        notify(
+                          'ok',
+                          `${res.importedCount} contact(s) importé(s), ${res.skippedCount} déjà présent(s).`
+                        );
+                      } else {
+                        const res = await adminFetch('/api/admin/waitlist/import', {
+                          method: 'POST',
+                          body: JSON.stringify({ entries }),
+                        });
+                        notify(
+                          'ok',
+                          `${res.importedCount} contact(s) importé(s), ${res.skippedCount} déjà présent(s).`
+                        );
+                      }
                       await loadOverview();
                     } catch (e) {
                       notify('err', e instanceof Error ? e.message : 'Import impossible');
@@ -375,9 +590,15 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   }}
                   onDeleteUser={async (userId) => {
                     try {
-                      await adminFetch(`/api/admin/users/${userId}`, {
-                        method: 'DELETE',
-                      });
+                      if (isFirebaseMode) {
+                        const targetUser = overview.users.find((u) => u.id === userId);
+                        if (!targetUser) throw new Error('Utilisateur introuvable.');
+                        await deleteManagedUserInFirestore(targetUser);
+                      } else {
+                        await adminFetch(`/api/admin/users/${userId}`, {
+                          method: 'DELETE',
+                        });
+                      }
                       notify('ok', 'Utilisateur supprimé.');
                       await loadOverview();
                     } catch (e) {
@@ -385,6 +606,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onExportCsv={async () => {
+                    if (isFirebaseMode) {
+                      exportUsersCsvLocally(overview.users);
+                      notify('ok', 'Export CSV téléchargé.');
+                      return;
+                    }
                     const res = await downloadAdminCsv(
                       '/api/admin/users/export.csv',
                       'startbill-users.csv'
@@ -399,6 +625,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   regions={overview.regions}
                   usersByRegion={overview.analytics.usersByRegion}
                   onUpdateRegion={async (code, payload) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Configuration des régions réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/regions/${code}`, {
                         method: 'PATCH',
@@ -420,6 +650,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   coupons={overview.coupons}
                   analytics={overview.analytics}
                   onUpdatePaymentStatus={async (id, status) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Gestion des paiements réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/billing/payments/${id}`, {
                         method: 'PATCH',
@@ -432,6 +666,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onCreateCoupon={async (payload) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Création de coupons réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch('/api/admin/billing/coupons', {
                         method: 'POST',
@@ -444,6 +682,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onToggleCoupon={async (id) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Modification de coupons réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/billing/coupons/${id}`, {
                         method: 'PATCH',
@@ -462,6 +704,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   invoices={overview.invoices}
                   analytics={overview.analytics}
                   onToggleFlag={async (id, flaggedFraud, flagReason) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Signalement de factures réservé au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/invoices/${id}/flag`, {
                         method: 'PATCH',
@@ -484,10 +730,22 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   cms={overview.cms}
                   onSaveCms={async (payload) => {
                     try {
-                      await adminFetch('/api/admin/cms', {
-                        method: 'PUT',
-                        body: JSON.stringify(payload),
-                      });
+                      if (isFirebaseMode) {
+                        await updatePlatformConfigInFirestore({
+                          siteName: overview.settings.siteName,
+                          maintenanceMode: overview.settings.maintenanceMode,
+                          maintenanceMessage: overview.settings.maintenanceMessage,
+                          heroTitleLine1: payload.heroTitleLine1,
+                          heroTitleLine2: payload.heroTitleLine2,
+                          heroSubtitle: payload.heroSubtitle,
+                          marqueeText: payload.marqueeText,
+                        });
+                      } else {
+                        await adminFetch('/api/admin/cms', {
+                          method: 'PUT',
+                          body: JSON.stringify(payload),
+                        });
+                      }
                       notify('ok', 'Contenu CMS publié.');
                       onPublicConfigChanged?.();
                       await loadOverview();
@@ -496,6 +754,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onCreatePost={async (payload) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Publication d’articles réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch('/api/admin/cms/posts', {
                         method: 'POST',
@@ -515,6 +777,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   campaigns={overview.emailCampaigns}
                   pushNotifications={overview.pushNotifications}
                   onSendEmail={async (payload) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Envoi d’emails groupés réservé au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch('/api/admin/communications/email', {
                         method: 'POST',
@@ -527,6 +793,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onSendPush={async (payload) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Diffusion push réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch('/api/admin/communications/push', {
                         method: 'POST',
@@ -546,6 +816,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <SupportSection
                   tickets={overview.tickets}
                   onUpdateTicket={async (id, payload) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Gestion des tickets réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/support/tickets/${id}`, {
                         method: 'PATCH',
@@ -558,6 +832,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onReplyTicket={async (id, message) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Réponse aux tickets réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/support/tickets/${id}/reply`, {
                         method: 'POST',
@@ -579,6 +857,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   securityAlerts={overview.securityAlerts}
                   activeSessions={overview.activeSessions}
                   onResolveAlert={async (id) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Résolution des alertes réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/logs/alerts/${id}`, {
                         method: 'PATCH',
@@ -590,6 +872,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onRevokeSession={async (sessionId) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Révocation de session réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch(`/api/admin/logs/sessions/${sessionId}/revoke`, {
                         method: 'POST',
@@ -608,10 +894,31 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   settings={overview.settings}
                   onSaveSettings={async (payload) => {
                     try {
-                      await adminFetch('/api/admin/settings', {
-                        method: 'PUT',
-                        body: JSON.stringify(payload),
-                      });
+                      if (isFirebaseMode) {
+                        await updatePlatformConfigInFirestore({
+                          siteName:
+                            typeof payload.siteName === 'string'
+                              ? payload.siteName
+                              : overview.settings.siteName,
+                          maintenanceMode:
+                            typeof payload.maintenanceMode === 'boolean'
+                              ? payload.maintenanceMode
+                              : overview.settings.maintenanceMode,
+                          maintenanceMessage:
+                            typeof payload.maintenanceMessage === 'string'
+                              ? payload.maintenanceMessage
+                              : overview.settings.maintenanceMessage,
+                          heroTitleLine1: overview.cms.heroTitleLine1,
+                          heroTitleLine2: overview.cms.heroTitleLine2,
+                          heroSubtitle: overview.cms.heroSubtitle,
+                          marqueeText: overview.cms.marqueeText,
+                        });
+                      } else {
+                        await adminFetch('/api/admin/settings', {
+                          method: 'PUT',
+                          body: JSON.stringify(payload),
+                        });
+                      }
                       notify('ok', 'Paramètres plateforme sauvegardés.');
                       onPublicConfigChanged?.();
                       await loadOverview();
@@ -620,6 +927,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onCreateBackup={async () => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Sauvegarde serveur JSON réservée au serveur Node.js actif.');
+                      return;
+                    }
                     try {
                       await adminFetch('/api/admin/settings/backup', {
                         method: 'POST',
@@ -637,6 +948,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <AnalyticsSection
                   analytics={overview.analytics}
                   onExportCsv={async () => {
+                    if (isFirebaseMode) {
+                      exportUsersCsvLocally(overview.users);
+                      notify('ok', 'Rapport utilisateurs exporté en CSV.');
+                      return;
+                    }
                     const res = await downloadAdminCsv(
                       '/api/admin/analytics/export.csv',
                       'startbill-analytics-report.csv'
@@ -654,6 +970,17 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   totalUsersCount={overview.users.length}
                   waitlistCount={overview.users.filter((u) => isWaitlistEntry(u)).length}
                   onUpdateProfile={async (fullName) => {
+                    if (isFirebaseMode) {
+                      setSessionState((prev) => {
+                        const updatedUser = prev.user
+                          ? { ...prev.user, fullName: fullName.trim() }
+                          : prev.user;
+                        onAdminSessionUserChangeRef.current?.(updatedUser || null);
+                        return { ...prev, user: updatedUser };
+                      });
+                      notify('ok', 'Nom administrateur mis à jour.');
+                      return;
+                    }
                     try {
                       const res = await adminFetch('/api/auth/admin/profile', {
                         method: 'PATCH',
@@ -670,6 +997,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onChangePassword={async (currentPassword, newPassword) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Mot de passe géré directement via votre compte Google.');
+                      return;
+                    }
                     await adminFetch('/api/auth/admin/change-password', {
                       method: 'POST',
                       body: JSON.stringify({ currentPassword, newPassword }),
@@ -677,6 +1008,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     notify('ok', 'Mot de passe administrateur mis à jour.');
                   }}
                   onInitTotpSetup={async () => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Double authentification gérée via Google Auth en mode Cloud.');
+                      return {};
+                    }
                     try {
                       return await adminFetch('/api/auth/admin/totp/setup', {
                         method: 'POST',
@@ -687,6 +1022,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onVerifyTotp={async (code) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Double authentification gérée via Google Auth en mode Cloud.');
+                      return;
+                    }
                     try {
                       const res = await adminFetch('/api/auth/admin/totp/verify', {
                         method: 'POST',
@@ -705,6 +1044,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                     }
                   }}
                   onDisableTotp={async (currentPassword) => {
+                    if (isFirebaseMode) {
+                      notify('err', 'Double authentification gérée via Google Auth en mode Cloud.');
+                      return;
+                    }
                     try {
                       const res = await adminFetch('/api/auth/admin/totp/disable', {
                         method: 'POST',
@@ -731,3 +1074,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     </div>
   );
 };
+
+export const AdminConsole: React.FC<AdminConsoleProps> = (props) => (
+  <AdminErrorBoundary onExitAdmin={props.onExitAdmin}>
+    <AdminConsoleInner {...props} />
+  </AdminErrorBoundary>
+);
