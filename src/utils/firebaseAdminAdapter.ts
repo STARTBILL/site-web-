@@ -1,12 +1,18 @@
 import {
   browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  linkWithCredential,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updatePassword,
+  updateProfile,
   type User,
 } from 'firebase/auth';
 import {
@@ -299,6 +305,30 @@ export async function activateOrResetAdminCloudPassword(
         };
       }
       // Si le compte existe déjà (ex: créé via Google Auth), envoi du lien officiel de définition/réinitialisation
+      try {
+        await sendPasswordResetEmail(auth, SUPER_ADMIN_EMAIL);
+        return {
+          ok: true,
+          mode: 'reset_sent',
+          message: `Ce compte (${SUPER_ADMIN_EMAIL}) existe déjà dans Firebase Auth (lié à Google). Le mot de passe saisi ici n’a pas été appliqué automatiquement : ouvrez le courriel envoyé par Firebase (vérifiez aussi vos Spams) et cliquez sur le lien pour définir votre mot de passe, ou utilisez la liaison instantanée via Google.`,
+        };
+      } catch (resetErr: any) {
+        const resetCode = String(resetErr?.code || '');
+        if (resetCode === 'auth/too-many-requests') {
+          return {
+            ok: false,
+            error:
+              'Un courriel vient déjà d’être envoyé à contact.startbill@gmail.com. Vérifiez votre boîte de réception (et les Spams) ou réessayez dans quelques minutes.',
+          };
+        }
+        return {
+          ok: false,
+          error:
+            resetErr instanceof Error
+              ? resetErr.message
+              : 'Impossible d’envoyer le courriel de définition du mot de passe.',
+        };
+      }
     }
   }
 
@@ -307,7 +337,7 @@ export async function activateOrResetAdminCloudPassword(
     return {
       ok: true,
       mode: 'reset_sent',
-      message: `Un lien sécurisé pour définir ou réinitialiser votre mot de passe a été envoyé à ${SUPER_ADMIN_EMAIL} (vérifiez aussi vos courriels indésirables).`,
+      message: `Un lien sécurisé pour définir ou réinitialiser votre mot de passe a été envoyé à ${SUPER_ADMIN_EMAIL} (pensez à vérifier vos Spams / Promotions).`,
     };
   } catch (err: any) {
     const code = String(err?.code || '');
@@ -333,6 +363,173 @@ export async function activateOrResetAdminCloudPassword(
           : 'Impossible d’envoyer le courriel de réinitialisation.',
     };
   }
+}
+
+export function hasFirebasePasswordProvider(user: User | null): boolean {
+  if (!user) return false;
+  return Boolean(user.providerData?.some((p) => p.providerId === 'password'));
+}
+
+export async function linkOrUpdateAdminPasswordWithGoogle(password: string): Promise<{
+  ok: boolean;
+  user?: User;
+  unauthorizedDomain?: string;
+  emailProviderDisabled?: boolean;
+  error?: string;
+}> {
+  if (!password || password.length < 8) {
+    return {
+      ok: false,
+      error:
+        'Saisissez d’abord le mot de passe souhaité (minimum 8 caractères) dans le champ Mot de passe ci-dessus.',
+    };
+  }
+  try {
+    const cred = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+    const fbUser = cred.user;
+    const email = String(fbUser.email || '').trim().toLowerCase();
+    if (email !== SUPER_ADMIN_EMAIL || !fbUser.emailVerified) {
+      await signOut(auth);
+      return {
+        ok: false,
+        error: `Accès refusé : connectez-vous avec ${SUPER_ADMIN_EMAIL}.`,
+      };
+    }
+
+    if (hasFirebasePasswordProvider(fbUser)) {
+      await updatePassword(fbUser, password);
+    } else {
+      const emailCred = EmailAuthProvider.credential(SUPER_ADMIN_EMAIL, password);
+      await linkWithCredential(fbUser, emailCred);
+    }
+    await fbUser.reload().catch(() => {});
+    return { ok: true, user: fbUser };
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    if (code === 'auth/unauthorized-domain') {
+      const hostname =
+        typeof window !== 'undefined' && window.location.hostname
+          ? window.location.hostname
+          : 'startbill.app';
+      return {
+        ok: false,
+        unauthorizedDomain: hostname,
+        error: `Le domaine « ${hostname} » doit être autorisé dans Firebase Authentication pour utiliser Google.`,
+      };
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return {
+        ok: false,
+        emailProviderDisabled: true,
+        error: 'La méthode « E-mail/Mot de passe » n’est pas activée dans Firebase Authentication.',
+      };
+    }
+    if (code === 'auth/weak-password') {
+      return {
+        ok: false,
+        error: 'Mot de passe trop faible. Utilisez au moins 8 caractères plus complexes.',
+      };
+    }
+    if (code === 'auth/popup-closed-by-user') {
+      return { ok: false, error: 'Fenêtre Google fermée avant la confirmation.' };
+    }
+    if (code === 'auth/provider-already-linked') {
+      const current = auth.currentUser;
+      if (current) {
+        await updatePassword(current, password);
+        return { ok: true, user: current };
+      }
+    }
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Impossible d’associer ce mot de passe au compte administrateur.',
+    };
+  }
+}
+
+export async function updateCurrentFirebaseAdminPassword(
+  newPassword: string,
+  currentPassword?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const fbUser = auth.currentUser;
+  if (!fbUser || !isFirebaseSuperAdminUser(fbUser)) {
+    return { ok: false, error: 'Session Cloud administrateur introuvable. Reconnectez-vous.' };
+  }
+  if (!newPassword || newPassword.length < 8) {
+    return { ok: false, error: 'Le nouveau mot de passe doit contenir au moins 8 caractères.' };
+  }
+
+  const alreadyHasPassword = hasFirebasePasswordProvider(fbUser);
+
+  const applyChange = async () => {
+    if (alreadyHasPassword) {
+      await updatePassword(fbUser, newPassword);
+    } else {
+      const emailCred = EmailAuthProvider.credential(SUPER_ADMIN_EMAIL, newPassword);
+      await linkWithCredential(fbUser, emailCred);
+    }
+  };
+
+  try {
+    await applyChange();
+    await fbUser.reload().catch(() => {});
+    return { ok: true };
+  } catch (err: any) {
+    const code = String(err?.code || '');
+    if (code === 'auth/requires-recent-login') {
+      try {
+        if (alreadyHasPassword && currentPassword) {
+          await reauthenticateWithCredential(
+            fbUser,
+            EmailAuthProvider.credential(SUPER_ADMIN_EMAIL, currentPassword)
+          );
+        } else {
+          await reauthenticateWithPopup(fbUser, googleProvider, browserPopupRedirectResolver);
+        }
+        await applyChange();
+        await fbUser.reload().catch(() => {});
+        return { ok: true };
+      } catch (reauthErr: any) {
+        return {
+          ok: false,
+          error:
+            reauthErr instanceof Error
+              ? reauthErr.message
+              : 'Réauthentification requise avant de modifier le mot de passe.',
+        };
+      }
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return {
+        ok: false,
+        error: 'Activez d’abord « E-mail/Mot de passe » dans Firebase Authentication.',
+      };
+    }
+    if (code === 'auth/weak-password') {
+      return {
+        ok: false,
+        error: 'Mot de passe trop faible. Utilisez au moins 8 caractères plus complexes.',
+      };
+    }
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Impossible d’enregistrer le mot de passe Cloud.',
+    };
+  }
+}
+
+export async function updateCurrentFirebaseAdminProfile(fullName: string): Promise<void> {
+  const fbUser = auth.currentUser;
+  if (!fbUser || !isFirebaseSuperAdminUser(fbUser)) return;
+  const cleanName = clampStr(fullName, 120);
+  if (!cleanName) return;
+  await updateProfile(fbUser, { displayName: cleanName });
 }
 
 export async function signOutFirebaseAdmin(): Promise<void> {

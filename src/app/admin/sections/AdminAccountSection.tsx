@@ -19,6 +19,8 @@ interface AdminAccountSectionProps {
     region: string;
   } | null;
   totpEnabled: boolean;
+  isFirebaseMode?: boolean;
+  hasCloudPassword?: boolean;
   activeSessions: ActiveSessionView[];
   totalUsersCount: number;
   waitlistCount: number;
@@ -36,6 +38,8 @@ interface AdminAccountSectionProps {
 export const AdminAccountSection: React.FC<AdminAccountSectionProps> = ({
   user,
   totpEnabled,
+  isFirebaseMode = false,
+  hasCloudPassword = false,
   activeSessions,
   totalUsersCount,
   waitlistCount,
@@ -222,17 +226,40 @@ export const AdminAccountSection: React.FC<AdminAccountSectionProps> = ({
           </button>
         </form>
 
-        {/* Changement de mot de passe */}
+        {/* Changement ou liaison de mot de passe */}
         <form
           onSubmit={handleSavePassword}
           className="p-6 rounded-xl bg-white dark:bg-[#0c1e3d] border border-slate-200 dark:border-blue-900/60 space-y-4"
         >
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Modifier le mot de passe administrateur
-            </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {isFirebaseMode
+                  ? hasCloudPassword
+                    ? 'Modifier le mot de passe Cloud'
+                    : 'Définir un mot de passe Cloud'
+                  : 'Modifier le mot de passe administrateur'}
+              </h3>
+            </div>
+            {isFirebaseMode && (
+              <span
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                  hasCloudPassword
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                }`}
+              >
+                {hasCloudPassword ? 'Mot de passe lié' : 'Non lié au compte Google'}
+              </span>
+            )}
           </div>
+
+          {isFirebaseMode && !hasCloudPassword && (
+            <p className="text-xs text-slate-600 dark:text-blue-200 leading-relaxed">
+              Associez un mot de passe à votre compte pour pouvoir vous connecter directement par courriel sur tous vos domaines (y compris startbill.app).
+            </p>
+          )}
 
           {passwordError && (
             <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
@@ -241,28 +268,32 @@ export const AdminAccountSection: React.FC<AdminAccountSectionProps> = ({
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-blue-200 mb-1">
-              Mot de passe actuel
-            </label>
-            <input
-              type="password"
-              required
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white"
-            />
-          </div>
+          {(!isFirebaseMode || hasCloudPassword) && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-blue-200 mb-1">
+                Mot de passe actuel
+              </label>
+              <input
+                type="password"
+                required={!isFirebaseMode || hasCloudPassword}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-blue-200 mb-1">
-                Nouveau mot de passe (12+ car.)
+                {isFirebaseMode
+                  ? 'Nouveau mot de passe (8+ car.)'
+                  : 'Nouveau mot de passe (12+ car.)'}
               </label>
               <input
                 type="password"
                 required
-                minLength={12}
+                minLength={isFirebaseMode ? 8 : 12}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white"
@@ -275,7 +306,7 @@ export const AdminAccountSection: React.FC<AdminAccountSectionProps> = ({
               <input
                 type="password"
                 required
-                minLength={12}
+                minLength={isFirebaseMode ? 8 : 12}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white"
@@ -288,7 +319,11 @@ export const AdminAccountSection: React.FC<AdminAccountSectionProps> = ({
             disabled={savingPassword}
             className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-blue-600 hover:opacity-90 text-white text-xs font-semibold disabled:opacity-60 transition-colors"
           >
-            {savingPassword ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
+            {savingPassword
+              ? 'Enregistrement...'
+              : isFirebaseMode && !hasCloudPassword
+              ? 'Associer ce mot de passe Cloud'
+              : 'Mettre à jour le mot de passe'}
           </button>
         </form>
       </div>

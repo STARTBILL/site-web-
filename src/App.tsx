@@ -163,23 +163,8 @@ function MainApp() {
     loadPublicConfig();
   }, [loadPublicConfig]);
 
-  // Synchroniser la session Super Admin (Node.js ou Firebase Auth) si elle existe déjà
+  // Synchroniser la session Super Admin unifiée (Firebase Auth)
   useEffect(() => {
-    adminApiRequest('/api/auth/admin/session')
-      .then(({ data }) => {
-        if (
-          data?.authenticated &&
-          data?.totpVerified &&
-          !data?.mustChangePassword &&
-          data?.user
-        ) {
-          setCurrentUser(data.user);
-        }
-      })
-      .catch(() => {
-        // Ignore silent session check failure
-      });
-
     const unsub = subscribeFirebaseAdminAuth((fbUser) => {
       if (isFirebaseSuperAdminUser(fbUser) && fbUser) {
         setCurrentUser((prev) =>
@@ -195,6 +180,8 @@ function MainApp() {
                 regionActive: true,
               }
         );
+      } else {
+        setCurrentUser((prev) => (prev?.role === 'super_admin' ? null : prev));
       }
     });
     return () => unsub();

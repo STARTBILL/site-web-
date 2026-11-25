@@ -20,7 +20,6 @@ import {
 } from '../config/regions';
 import { useLanguage } from '../context/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../hooks/useSuperAdmin';
-import { adminApiRequest } from '../utils/adminClient';
 import { submitUserLogin, submitUserSignup } from '../utils/authClient';
 import { signInAdminWithEmailPassword } from '../utils/firebaseAdminAdapter';
 import type { AuthUser } from './RegionBlockedScreen';
@@ -97,59 +96,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           return;
         }
 
-        const { status, data } = await adminApiRequest('/api/auth/admin/login', {
-          method: 'POST',
-          body: JSON.stringify({ email: cleanEmail, password }),
-        });
-
-        if (data?.staticHostDetected || data?.isNonJson) {
-          const fbRes = await signInAdminWithEmailPassword(cleanEmail, password);
-          if (fbRes.ok && fbRes.user) {
-            onAuthSuccess({
-              id: fbRes.user.uid,
-              fullName: fbRes.user.displayName || 'Ferline Zogni — Admin STARTBILL',
-              email: fbRes.user.email || SUPER_ADMIN_EMAIL,
-              role: 'super_admin',
-              region: 'CA',
-              currency: 'CAD',
-              regionActive: true,
-            });
-            onClose();
-            onRouteToAdmin?.();
-            return;
-          }
-          setError(
-            fbRes.error ||
-              (lang === 'fr'
-                ? 'Connexion administrateur impossible.'
-                : 'Unable to sign in as admin.')
-          );
-          setShowAdminGateLink(true);
-          return;
-        }
-
-        if (
-          data?.setupRequired ||
-          data?.mustChangePassword ||
-          (data?.totpEnabled && !data?.totpVerified)
-        ) {
-          onClose();
-          onRouteToAdmin?.();
-          return;
-        }
-
-        if (status < 400 && data?.success && data?.user) {
-          onAuthSuccess(data.user);
+        const fbRes = await signInAdminWithEmailPassword(cleanEmail, password);
+        if (fbRes.ok && fbRes.user) {
+          onAuthSuccess({
+            id: fbRes.user.uid,
+            fullName: fbRes.user.displayName || 'Ferline Zogni — Admin STARTBILL',
+            email: fbRes.user.email || SUPER_ADMIN_EMAIL,
+            role: 'super_admin',
+            region: 'CA',
+            currency: 'CAD',
+            regionActive: true,
+          });
           onClose();
           onRouteToAdmin?.();
           return;
         }
 
         setError(
-          data?.error ||
+          fbRes.error ||
             (lang === 'fr'
-              ? 'Identifiants administrateur invalides.'
-              : 'Invalid admin credentials.')
+              ? 'Connexion administrateur impossible.'
+              : 'Unable to sign in as admin.')
         );
         setShowAdminGateLink(true);
         return;

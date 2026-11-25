@@ -13,12 +13,15 @@ import {
   createManagedUserInFirestore,
   deleteManagedUserInFirestore,
   exportUsersCsvLocally,
+  hasFirebasePasswordProvider,
   importWaitlistInFirestore,
   inviteManagedUserInFirestore,
   isFirebaseSuperAdminUser,
   loadAdminOverviewFromFirestore,
   signOutFirebaseAdmin,
   subscribeFirebaseAdminAuth,
+  updateCurrentFirebaseAdminPassword,
+  updateCurrentFirebaseAdminProfile,
   updateManagedUserInFirestore,
   updatePlatformConfigInFirestore,
 } from '../../utils/firebaseAdminAdapter';
@@ -158,30 +161,8 @@ const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
   const checkAdminSession = useCallback(async () => {
     setCheckingSession(true);
     try {
-      const { status, data } = await adminApiRequest('/api/auth/admin/session');
-      const staticHostDetected = Boolean(data?.staticHostDetected);
+      await auth.authStateReady();
       const fbUser = auth.currentUser;
-
-      if (data?.authenticated) {
-        const next: AdminSessionState = {
-          authenticated: true,
-          setupRequired: Boolean(data.setupRequired),
-          envManaged: Boolean(data.envManaged),
-          staticHostDetected,
-          authMode: 'node',
-          backendError: null,
-          user: data.user || null,
-          mustChangePassword: Boolean(data.mustChangePassword),
-          totpEnabled: Boolean(data.totpEnabled),
-          totpVerified: Boolean(data.totpVerified),
-          csrfToken: data.csrfToken || '',
-        };
-        setSessionState(next);
-        onAdminSessionUserChangeRef.current?.(
-          !next.totpEnabled || next.totpVerified ? next.user : null
-        );
-        return;
-      }
 
       if (isFirebaseSuperAdminUser(fbUser) && fbUser) {
         const fbAdminUser = {
@@ -194,7 +175,7 @@ const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
         setSessionState({
           authenticated: true,
           setupRequired: false,
-          staticHostDetected,
+          staticHostDetected: true,
           authMode: 'firebase',
           backendError: null,
           user: fbAdminUser,
@@ -207,28 +188,24 @@ const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
         return;
       }
 
-      const backendError =
-        !staticHostDetected && (data?.isNonJson || status === 0 || status >= 500)
-          ? data?.error || 'Serveur d’administration inaccessible.'
-          : null;
-
       setSessionState({
         authenticated: false,
-        setupRequired: Boolean(data?.setupRequired),
-        envManaged: Boolean(data?.envManaged),
-        staticHostDetected,
+        setupRequired: false,
+        envManaged: false,
+        staticHostDetected: true,
         authMode: undefined,
-        backendError,
+        backendError: null,
         user: null,
         mustChangePassword: false,
         totpEnabled: false,
         totpVerified: false,
-        csrfToken: data?.csrfToken || '',
+        csrfToken: '',
       });
       onAdminSessionUserChangeRef.current?.(null);
     } catch {
       setSessionState((prev) => ({
         ...prev,
+        setupRequired: false,
         staticHostDetected: true,
         backendError: null,
       }));
@@ -966,11 +943,18 @@ const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
                 <AdminAccountSection
                   user={sessionState.user}
                   totpEnabled={sessionState.totpEnabled}
+                  isFirebaseMode={isFirebaseMode}
+                  hasCloudPassword={hasFirebasePasswordProvider(auth.currentUser)}
                   activeSessions={overview.activeSessions}
                   totalUsersCount={overview.users.length}
                   waitlistCount={overview.users.filter((u) => isWaitlistEntry(u)).length}
                   onUpdateProfile={async (fullName) => {
                     if (isFirebaseMode) {
+                      try {
+                        await updateCurrentFirebaseAdminProfile(fullName);
+                      } catch {
+                        // Keep UI update even if displayName update fails
+                      }
                       setSessionState((prev) => {
                         const updatedUser = prev.user
                           ? { ...prev.user, fullName: fullName.trim() }
@@ -998,7 +982,14 @@ const AdminConsoleInner: React.FC<AdminConsoleProps> = ({
                   }}
                   onChangePassword={async (currentPassword, newPassword) => {
                     if (isFirebaseMode) {
-                      notify('err', 'Mot de passe géré directement via votre compte Google.');
+                      const res = await updateCurrentFirebaseAdminPassword(
+                        newPassword,
+                        currentPassword
+                      );
+                      if (!res.ok) {
+                        throw new Error(res.error || 'Impossible de mettre à jour le mot de passe Cloud.');
+                      }
+                      notify('ok', 'Mot de passe Cloud enregistré ! Vous pouvez désormais vous connecter directement par courriel.');
                       return;
                     }
                     await adminFetch('/api/auth/admin/change-password', {
