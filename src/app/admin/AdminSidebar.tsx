@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   LogOut,
   ShieldCheck,
+  UserCog,
 } from 'lucide-react';
 import { useSuperAdmin, type BasicUserIdentity } from '../../hooks/useSuperAdmin';
 import type { AdminSectionId } from './types';
@@ -26,6 +27,7 @@ interface AdminSidebarProps {
   onLogout: () => void;
   unresolvedAlertsCount?: number;
   openTicketsCount?: number;
+  pendingWaitlistCount?: number;
 }
 
 export const ADMIN_NAV_ITEMS: Array<{
@@ -34,7 +36,7 @@ export const ADMIN_NAV_ITEMS: Array<{
   icon: React.FC<{ className?: string }>;
 }> = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-  { id: 'users', label: 'Utilisateurs', icon: Users },
+  { id: 'users', label: 'Utilisateurs & Liste', icon: Users },
   { id: 'regions', label: 'Régions', icon: Globe2 },
   { id: 'billing', label: 'Abonnements & Paiements', icon: CreditCard },
   { id: 'invoices', label: 'Factures globales', icon: FileText },
@@ -44,6 +46,7 @@ export const ADMIN_NAV_ITEMS: Array<{
   { id: 'logs', label: 'Sécurité & Logs', icon: ShieldAlert },
   { id: 'settings', label: 'Paramètres', icon: Settings },
   { id: 'analytics', label: 'Analytics & Rapports', icon: BarChart3 },
+  { id: 'account', label: 'Mon compte Admin', icon: UserCog },
 ];
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -54,6 +57,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onLogout,
   unresolvedAlertsCount = 0,
   openTicketsCount = 0,
+  pendingWaitlistCount = 0,
 }) => {
   // Double protection RBAC côté UI : ne rend rien si l'utilisateur n'est pas le Super Admin exact
   const { isSuperAdmin } = useSuperAdmin(user);
@@ -85,13 +89,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
       </div>
 
-      {/* Navigation complète des 11 modules */}
+      {/* Navigation complète des 12 modules */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto" aria-label="Navigation Administration">
         {ADMIN_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
           const badgeCount =
-            item.id === 'logs'
+            item.id === 'users'
+              ? pendingWaitlistCount
+              : item.id === 'logs'
               ? unresolvedAlertsCount
               : item.id === 'support'
               ? openTicketsCount

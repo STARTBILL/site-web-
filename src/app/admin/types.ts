@@ -11,7 +11,8 @@ export type AdminSectionId =
   | 'support'
   | 'logs'
   | 'settings'
-  | 'analytics';
+  | 'analytics'
+  | 'account';
 
 export interface DbUserView {
   id: string;
@@ -24,6 +25,11 @@ export interface DbUserView {
   profile: string;
   currency: CurrencyCode;
   emailVerified: boolean;
+  source?: 'waitlist' | 'signup' | 'admin' | 'seed';
+  waitlistStatus?: 'en_attente' | 'invite' | 'converti';
+  adminNotes?: string;
+  invitedAt?: string;
+  passwordClaimed?: boolean;
   mustChangePassword?: boolean;
   immutable?: boolean;
   totpEnabled?: boolean;

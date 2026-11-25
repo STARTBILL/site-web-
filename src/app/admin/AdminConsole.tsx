@@ -3,11 +3,15 @@ import { RefreshCw, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AdminSidebar, ADMIN_NAV_ITEMS } from './AdminSidebar';
 import { AdminAuthGate, type AdminSessionState } from './AdminAuthGate';
 import { useSuperAdmin, useIdleLogout } from '../../hooks/useSuperAdmin';
-import { adminApiRequest } from '../../utils/adminClient';
+import {
+  adminApiRequest,
+  downloadAdminCsv,
+  readLocalWaitlistCandidates,
+} from '../../utils/adminClient';
 import type { AdminOverviewData, AdminSectionId } from './types';
 
 import { DashboardSection } from './sections/DashboardSection';
-import { UsersSection } from './sections/UsersSection';
+import { UsersSection, isWaitlistEntry } from './sections/UsersSection';
 import { RegionsSection } from './sections/RegionsSection';
 import { BillingSection } from './sections/BillingSection';
 import { InvoicesSection } from './sections/InvoicesSection';
@@ -17,6 +21,7 @@ import { SupportSection } from './sections/SupportSection';
 import { LogsSection } from './sections/LogsSection';
 import { SettingsSection } from './sections/SettingsSection';
 import { AnalyticsSection } from './sections/AnalyticsSection';
+import { AdminAccountSection } from './sections/AdminAccountSection';
 
 interface AdminConsoleProps {
   section: AdminSectionId;
@@ -37,6 +42,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 }) => {
   const [sessionState, setSessionState] = useState<AdminSessionState>({
     authenticated: false,
+    setupRequired: false,
     user: null,
     mustChangePassword: false,
     totpEnabled: false,
@@ -53,7 +59,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     sessionState.authenticated &&
     isSuperAdmin &&
     !sessionState.mustChangePassword &&
-    sessionState.totpVerified;
+    (!sessionState.totpEnabled || sessionState.totpVerified);
 
   const notify = (type: 'ok' | 'err', msg: string) => {
     setToast({ type, msg });
@@ -68,6 +74,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         if (!active || !data) return;
         const next: AdminSessionState = {
           authenticated: Boolean(data.authenticated),
+          setupRequired: Boolean(data.setupRequired),
+          envManaged: Boolean(data.envManaged),
           user: data.user || null,
           mustChangePassword: Boolean(data.mustChangePassword),
           totpEnabled: Boolean(data.totpEnabled),
@@ -75,7 +83,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
           csrfToken: data.csrfToken || '',
         };
         setSessionState(next);
-        onAdminSessionUserChange?.(next.totpVerified ? next.user : null);
+        onAdminSessionUserChange?.(
+          next.authenticated && (!next.totpEnabled || next.totpVerified) ? next.user : null
+        );
       })
       .catch(() => {
         // Ignore network check error
@@ -175,7 +185,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         nonAdminLoggedInEmail={nonAdminLoggedInEmail}
         onSessionUpdated={(next: AdminSessionState) => {
           setSessionState(next);
-          if (next.totpVerified && !next.mustChangePassword) {
+          if (next.authenticated && !next.mustChangePassword && (!next.totpEnabled || next.totpVerified)) {
             onAdminSessionUserChange?.(next.user);
           }
         }}
@@ -185,6 +195,15 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   }
 
   const currentNav = ADMIN_NAV_ITEMS.find((n) => n.id === section) || ADMIN_NAV_ITEMS[0];
+  const existingEmailsSet = new Set(
+    (overview?.users || []).map((u) => u.email.toLowerCase())
+  );
+  const unsyncedLocalWaitlist = readLocalWaitlistCandidates().filter(
+    (c) => !existingEmailsSet.has(c.email.toLowerCase())
+  );
+  const pendingWaitlistCount = (overview?.users || []).filter(
+    (u) => isWaitlistEntry(u) && u.waitlistStatus !== 'invite' && u.waitlistStatus !== 'converti'
+  ).length;
 
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-[#071328] text-slate-900 dark:text-blue-50">
@@ -194,6 +213,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         onSelectSection={onSelectSection}
         onExitAdmin={onExitAdmin}
         onLogout={handleLogout}
+        pendingWaitlistCount={pendingWaitlistCount}
         unresolvedAlertsCount={
           overview?.securityAlerts.filter((a) => !a.resolved).length || 0
         }
@@ -270,6 +290,34 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <UsersSection
                   users={overview.users}
                   activities={overview.userActivities}
+                  localWaitlistCount={unsyncedLocalWaitlist.length}
+                  onSyncLocalWaitlist={async () => {
+                    try {
+                      const res = await adminFetch('/api/admin/waitlist/import', {
+                        method: 'POST',
+                        body: JSON.stringify({ entries: unsyncedLocalWaitlist }),
+                      });
+                      notify(
+                        'ok',
+                        `${res.importedCount} contact(s) de la liste d’attente synchronisé(s).`
+                      );
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Erreur de synchronisation');
+                    }
+                  }}
+                  onCreateUser={async (payload) => {
+                    try {
+                      await adminFetch('/api/admin/users', {
+                        method: 'POST',
+                        body: JSON.stringify(payload),
+                      });
+                      notify('ok', 'Contact / utilisateur enregistré.');
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Création impossible');
+                    }
+                  }}
                   onUpdateUser={async (userId, payload) => {
                     try {
                       await adminFetch(`/api/admin/users/${userId}`, {
@@ -280,6 +328,32 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                       await loadOverview();
                     } catch (e) {
                       notify('err', e instanceof Error ? e.message : 'Erreur');
+                    }
+                  }}
+                  onInviteWaitlistUser={async (userId) => {
+                    try {
+                      await adminFetch(`/api/admin/users/${userId}/invite`, {
+                        method: 'POST',
+                      });
+                      notify('ok', 'Invitation liste d’attente enregistrée.');
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Erreur');
+                    }
+                  }}
+                  onImportWaitlist={async (entries) => {
+                    try {
+                      const res = await adminFetch('/api/admin/waitlist/import', {
+                        method: 'POST',
+                        body: JSON.stringify({ entries }),
+                      });
+                      notify(
+                        'ok',
+                        `${res.importedCount} contact(s) importé(s), ${res.skippedCount} déjà présent(s).`
+                      );
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Import impossible');
                     }
                   }}
                   onDeleteUser={async (userId) => {
@@ -293,8 +367,12 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                       notify('err', e instanceof Error ? e.message : 'Suppression refusée');
                     }
                   }}
-                  onExportCsv={() => {
-                    window.location.assign('/api/admin/users/export.csv');
+                  onExportCsv={async () => {
+                    const res = await downloadAdminCsv(
+                      '/api/admin/users/export.csv',
+                      'startbill-users.csv'
+                    );
+                    if (!res.ok) notify('err', res.error || 'Export CSV impossible.');
                   }}
                 />
               )}
@@ -541,8 +619,91 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               {section === 'analytics' && (
                 <AnalyticsSection
                   analytics={overview.analytics}
-                  onExportCsv={() => {
-                    window.location.assign('/api/admin/analytics/export.csv');
+                  onExportCsv={async () => {
+                    const res = await downloadAdminCsv(
+                      '/api/admin/analytics/export.csv',
+                      'startbill-analytics-report.csv'
+                    );
+                    if (!res.ok) notify('err', res.error || 'Export CSV impossible.');
+                  }}
+                />
+              )}
+
+              {section === 'account' && (
+                <AdminAccountSection
+                  user={sessionState.user}
+                  totpEnabled={sessionState.totpEnabled}
+                  activeSessions={overview.activeSessions}
+                  totalUsersCount={overview.users.length}
+                  waitlistCount={overview.users.filter((u) => isWaitlistEntry(u)).length}
+                  onUpdateProfile={async (fullName) => {
+                    try {
+                      const res = await adminFetch('/api/auth/admin/profile', {
+                        method: 'PATCH',
+                        body: JSON.stringify({ fullName }),
+                      });
+                      if (res?.user) {
+                        setSessionState((prev) => ({ ...prev, user: res.user }));
+                        onAdminSessionUserChange?.(res.user);
+                      }
+                      notify('ok', 'Profil administrateur mis à jour.');
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Erreur');
+                    }
+                  }}
+                  onChangePassword={async (currentPassword, newPassword) => {
+                    await adminFetch('/api/auth/admin/change-password', {
+                      method: 'POST',
+                      body: JSON.stringify({ currentPassword, newPassword }),
+                    });
+                    notify('ok', 'Mot de passe administrateur mis à jour.');
+                  }}
+                  onInitTotpSetup={async () => {
+                    try {
+                      return await adminFetch('/api/auth/admin/totp/setup', {
+                        method: 'POST',
+                      });
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Erreur 2FA');
+                      return {};
+                    }
+                  }}
+                  onVerifyTotp={async (code) => {
+                    try {
+                      const res = await adminFetch('/api/auth/admin/totp/verify', {
+                        method: 'POST',
+                        body: JSON.stringify({ code }),
+                      });
+                      setSessionState((prev) => ({
+                        ...prev,
+                        totpEnabled: true,
+                        totpVerified: true,
+                        user: res.user || prev.user,
+                      }));
+                      notify('ok', 'Double authentification 2FA activée.');
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Code TOTP invalide');
+                    }
+                  }}
+                  onDisableTotp={async (currentPassword) => {
+                    try {
+                      const res = await adminFetch('/api/auth/admin/totp/disable', {
+                        method: 'POST',
+                        body: JSON.stringify({ currentPassword }),
+                      });
+                      setSessionState((prev) => ({
+                        ...prev,
+                        totpEnabled: false,
+                        totpVerified: true,
+                        user: res.user || prev.user,
+                      }));
+                      notify('ok', 'Double authentification 2FA désactivée.');
+                      await loadOverview();
+                    } catch (e) {
+                      notify('err', e instanceof Error ? e.message : 'Mot de passe invalide');
+                    }
                   }}
                 />
               )}

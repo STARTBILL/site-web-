@@ -10,12 +10,11 @@ const DATA_DIR = path.join(ROOT_DIR, 'data');
 export const DB_FILE_PATH = path.join(DATA_DIR, 'startbill-db.json');
 
 export const SUPER_ADMIN_EMAIL = 'contact.startbill@gmail.com';
-// Hash bcrypt (12 rounds) généré par scripts/seedAdmin.js — aucun mot de passe en clair dans le code
-const DEFAULT_ADMIN_BCRYPT_HASH =
-  '$2b$12$qmEEz6hjfny28Wpj.Qj1bOVCHKKYs.6Izx.Z7YfyoUmZEj.VEVqei';
 
 export type UserRole = 'user' | 'pro' | 'admin' | 'super_admin';
 export type UserStatus = 'actif' | 'suspendu';
+export type UserSource = 'waitlist' | 'signup' | 'admin' | 'seed';
+export type WaitlistStatus = 'en_attente' | 'invite' | 'converti';
 
 export interface DbUser {
   id: string;
@@ -28,6 +27,11 @@ export interface DbUser {
   profile: string;
   currency: CurrencyCode;
   emailVerified: boolean;
+  source?: UserSource;
+  waitlistStatus?: WaitlistStatus;
+  adminNotes?: string;
+  invitedAt?: string;
+  passwordClaimed?: boolean;
   mustChangePassword?: boolean;
   immutable?: boolean;
   totpEnabled?: boolean;
@@ -262,7 +266,9 @@ function buildInitialSeed(existingAdmin?: DbUser): StartBillDatabase {
         region: 'CA',
         emailVerified: true,
         immutable: true,
-        passwordHash: existingAdmin.passwordHash || DEFAULT_ADMIN_BCRYPT_HASH,
+        source: 'seed',
+        passwordClaimed: Boolean(existingAdmin.passwordClaimed),
+        passwordHash: existingAdmin.passwordHash || '',
       }
     : {
         id: 'usr-super-admin-001',
@@ -275,11 +281,13 @@ function buildInitialSeed(existingAdmin?: DbUser): StartBillDatabase {
         profile: 'super_admin',
         currency: 'CAD',
         emailVerified: true,
-        mustChangePassword: true,
+        source: 'seed',
+        passwordClaimed: false,
+        mustChangePassword: false,
         immutable: true,
         totpEnabled: false,
         totpSecret: null,
-        passwordHash: DEFAULT_ADMIN_BCRYPT_HASH,
+        passwordHash: '',
         createdAt: iso(45),
         updatedAt: iso(45),
       };
@@ -996,6 +1004,37 @@ function buildInitialSeed(existingAdmin?: DbUser): StartBillDatabase {
 
 let cachedDb: StartBillDatabase | null = null;
 
+function normalizeUsersMetadata(users: DbUser[]): DbUser[] {
+  return users.map((u) => {
+    const email = String(u.email || '').trim().toLowerCase();
+    if (email === SUPER_ADMIN_EMAIL) {
+      return {
+        ...u,
+        email: SUPER_ADMIN_EMAIL,
+        role: 'super_admin',
+        region: 'CA',
+        immutable: true,
+        emailVerified: true,
+        source: 'seed',
+        passwordClaimed: Boolean(u.passwordClaimed),
+      };
+    }
+
+    const looksLikeWaitlist =
+      u.source === 'waitlist' ||
+      String(u.id || '').startsWith('wl-') ||
+      (!u.passwordHash && !u.emailVerified && u.role === 'user');
+
+    return {
+      ...u,
+      email,
+      source: u.source || (looksLikeWaitlist ? 'waitlist' : u.passwordHash ? 'signup' : 'seed'),
+      waitlistStatus:
+        u.waitlistStatus || (looksLikeWaitlist ? 'en_attente' : undefined),
+    };
+  });
+}
+
 export function getDb(): StartBillDatabase {
   if (cachedDb) return cachedDb;
 
@@ -1025,7 +1064,7 @@ export function getDb(): StartBillDatabase {
     cachedDb = {
       ...defaults,
       ...partialDb,
-      users: partialDb.users,
+      users: normalizeUsersMetadata(partialDb.users),
     };
   } else {
     // Si seul l'admin a été créé par scripts/seedAdmin.js, fusionner avec les collections complètes
@@ -1034,7 +1073,9 @@ export function getDb(): StartBillDatabase {
       const extraUsers = partialDb.users.filter(
         (u) => String(u.email).toLowerCase() !== SUPER_ADMIN_EMAIL
       );
-      cachedDb.users = [...defaults.users, ...extraUsers];
+      cachedDb.users = normalizeUsersMetadata([...defaults.users, ...extraUsers]);
+    } else {
+      cachedDb.users = normalizeUsersMetadata(defaults.users);
     }
     saveDb(cachedDb);
   }

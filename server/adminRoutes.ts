@@ -8,9 +8,12 @@ import {
   sanitizeUserForClient,
   appendAuditLog,
   SUPER_ADMIN_EMAIL,
+  type DbUser,
   type UserRole,
   type UserStatus,
+  type WaitlistStatus,
 } from './db.ts';
+import { DEFAULT_CURRENCY, normalizeRegionCode, type RegionCode } from '../src/config/regions.ts';
 import {
   generateTotpSecret,
   generateTotpQrDataUrl,
@@ -19,6 +22,8 @@ import {
 } from './totp.ts';
 import {
   adminRateLimiter,
+  adminAuthRateLimiter,
+  isSameOriginOrCustomHeader,
   createRequireSuperAdmin,
   ADMIN_IDLE_TIMEOUT_MS,
 } from '../middleware/requireSuperAdmin.js';
@@ -75,21 +80,38 @@ function setSessionCookie(req: Request, res: Response, sessionId: string) {
     isHttps ? 'SameSite=None' : 'SameSite=Lax',
     `Max-Age=${Math.floor(ADMIN_IDLE_TIMEOUT_MS / 1000)}`,
   ];
-  if (isHttps) flags.push('Secure');
+  if (isHttps) {
+    flags.push('Secure');
+    flags.push('Partitioned');
+  }
   res.setHeader('Set-Cookie', flags.join('; '));
 }
 
-function clearSessionCookie(res: Response) {
-  res.setHeader(
-    'Set-Cookie',
-    `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
-  );
+function clearSessionCookie(req: Request, res: Response) {
+  const isHttps =
+    req.secure || req.headers['x-forwarded-proto']?.toString().includes('https');
+  const flags = [
+    `${ADMIN_COOKIE_NAME}=`,
+    'Path=/',
+    'HttpOnly',
+    isHttps ? 'SameSite=None' : 'SameSite=Lax',
+    'Max-Age=0',
+  ];
+  if (isHttps) {
+    flags.push('Secure');
+    flags.push('Partitioned');
+  }
+  res.setHeader('Set-Cookie', flags.join('; '));
 }
 
 function resolveSession(req: Request) {
   const cookies = parseCookies(req);
+  const authHeader = req.headers.authorization?.toString() || '';
+  const bearerToken = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : '';
   const headerToken = req.headers['x-admin-session']?.toString().trim();
-  const sid = cookies[ADMIN_COOKIE_NAME] || headerToken;
+  const sid = bearerToken || headerToken || cookies[ADMIN_COOKIE_NAME];
   if (!sid) return null;
 
   const session = adminSessions.get(sid);
@@ -103,6 +125,45 @@ function resolveSession(req: Request) {
     ...session,
     user,
   };
+}
+
+function getConfiguredAdminPasscode(): string {
+  return String(process.env.ADMIN_PASSCODE || '').trim();
+}
+
+function timingSafeEqualsDigest(a: string, b: string): boolean {
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+function validateAdminAuthMutation(req: Request, res: Response, session: AdminSession): boolean {
+  if (!isSameOriginOrCustomHeader(req)) {
+    res.status(403).json({ error: 'Requête refusée : origine non autorisée.' });
+    return false;
+  }
+  const csrfHeader = String(req.headers['x-csrf-token'] || '');
+  if (!csrfHeader || !session.csrfToken || !timingSafeEqualsDigest(csrfHeader, session.csrfToken)) {
+    res.status(403).json({ error: 'Jeton CSRF invalide.' });
+    return false;
+  }
+  return true;
+}
+
+function escapeCsvCell(value: unknown): string {
+  const raw = String(value ?? '').replace(/"/g, '""');
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  return `"${safe}"`;
+}
+
+function isStrongAdminPassword(pw: string): boolean {
+  return (
+    pw.length >= 12 &&
+    /[A-Z]/.test(pw) &&
+    /[a-z]/.test(pw) &&
+    /\d/.test(pw) &&
+    /[^A-Za-z0-9]/.test(pw)
+  );
 }
 
 function touchSession(sessionId: string) {
@@ -218,11 +279,20 @@ export function createAdminAuthRouter() {
   const router = express.Router();
 
   router.get('/session', (req: Request, res: Response) => {
+    const db = getDb();
+    const adminUser = db.users.find((u) => u.email === SUPER_ADMIN_EMAIL);
+    const hasEnvPasscode = Boolean(getConfiguredAdminPasscode());
+    const setupRequired = !hasEnvPasscode && !adminUser?.passwordClaimed;
+
     const resolved = resolveSession(req);
     if (!resolved) {
       res.json({
         authenticated: false,
+        setupRequired,
+        adminEmail: SUPER_ADMIN_EMAIL,
+        envManaged: hasEnvPasscode,
         user: null,
+        totpEnabled: false,
         totpVerified: false,
         mustChangePassword: false,
       });
@@ -232,9 +302,11 @@ export function createAdminAuthRouter() {
     const now = Date.now();
     if (now - resolved.lastActivityAt > ADMIN_IDLE_TIMEOUT_MS) {
       destroySession(resolved.id);
-      clearSessionCookie(res);
+      clearSessionCookie(req, res);
       res.status(401).json({
         authenticated: false,
+        setupRequired,
+        adminEmail: SUPER_ADMIN_EMAIL,
         code: 'SESSION_IDLE_EXPIRED',
         error: "Session expirée après 30 minutes d'inactivité.",
       });
@@ -243,6 +315,9 @@ export function createAdminAuthRouter() {
 
     res.json({
       authenticated: true,
+      setupRequired: false,
+      adminEmail: SUPER_ADMIN_EMAIL,
+      envManaged: hasEnvPasscode,
       user: sanitizeUserForClient(resolved.user),
       mustChangePassword: Boolean(resolved.user.mustChangePassword),
       totpEnabled: Boolean(resolved.user.totpEnabled),
@@ -252,7 +327,115 @@ export function createAdminAuthRouter() {
     });
   });
 
-  router.post('/login', async (req: Request, res: Response) => {
+  // Activation initiale unique (verrouillée dès que le mot de passe est défini ou si ADMIN_PASSCODE est configuré)
+  router.post('/setup', adminAuthRateLimiter, async (req: Request, res: Response) => {
+    if (!isSameOriginOrCustomHeader(req)) {
+      res.status(403).json({ error: 'Origine non autorisée.' });
+      return;
+    }
+
+    const db = getDb();
+    const adminUser = db.users.find((u) => u.email === SUPER_ADMIN_EMAIL);
+    if (!adminUser) {
+      res.status(404).json({ error: 'Compte Super Administrateur introuvable.' });
+      return;
+    }
+
+    if (getConfiguredAdminPasscode() || adminUser.passwordClaimed) {
+      res.status(403).json({
+        error:
+          'Le compte Super Administrateur est déjà activé. Veuillez vous connecter normalement.',
+      });
+      return;
+    }
+
+    const email = String(req.body?.email || SUPER_ADMIN_EMAIL).trim().toLowerCase();
+    const fullName = String(req.body?.fullName || '').trim();
+    const password = String(req.body?.password || '');
+
+    if (email !== SUPER_ADMIN_EMAIL) {
+      res.status(403).json({
+        error: `Seule l'adresse ${SUPER_ADMIN_EMAIL} peut être activée en tant que Super Administrateur.`,
+      });
+      return;
+    }
+
+    if (!isStrongAdminPassword(password)) {
+      res.status(400).json({
+        error:
+          'Le mot de passe doit contenir au moins 12 caractères, une majuscule, une minuscule, un chiffre et un symbole.',
+      });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    adminUser.fullName = fullName || adminUser.fullName || 'Super Administrateur STARTBILL';
+    adminUser.passwordHash = await bcrypt.hash(password, 12);
+    adminUser.passwordClaimed = true;
+    adminUser.mustChangePassword = false;
+    adminUser.totpEnabled = false;
+    adminUser.totpSecret = null;
+    adminUser.updatedAt = nowIso;
+    adminUser.lastLoginAt = nowIso;
+
+    const ip = getClientIp(req);
+    const userAgent = String(req.headers['user-agent'] || 'Unknown');
+
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const csrfToken = crypto.randomBytes(24).toString('hex');
+    const now = Date.now();
+
+    const session: AdminSession = {
+      id: sessionId,
+      userId: adminUser.id,
+      email: adminUser.email,
+      role: adminUser.role,
+      csrfToken,
+      totpVerified: true,
+      pendingTotpSecret: null,
+      ip,
+      userAgent: userAgent.slice(0, 80),
+      createdAt: now,
+      lastActivityAt: now,
+    };
+
+    adminSessions.set(sessionId, session);
+    setSessionCookie(req, res, sessionId);
+
+    db.loginHistory.unshift({
+      id: `log-${Date.now()}`,
+      email: SUPER_ADMIN_EMAIL,
+      role: 'super_admin',
+      success: true,
+      ip,
+      browser: userAgent.slice(0, 60),
+      location: 'Canada',
+      timestamp: nowIso,
+    });
+    saveDb(db);
+
+    appendAuditLog({
+      actorEmail: SUPER_ADMIN_EMAIL,
+      action: 'ADMIN_ACCOUNT_CLAIMED',
+      target: SUPER_ADMIN_EMAIL,
+      details: 'Activation initiale du compte Super Administrateur avec mot de passe bcrypt (12 rounds)',
+      ip,
+      userAgent: userAgent.slice(0, 60),
+    });
+
+    res.status(201).json({
+      success: true,
+      setupRequired: false,
+      user: sanitizeUserForClient(adminUser),
+      mustChangePassword: false,
+      totpEnabled: false,
+      totpVerified: true,
+      csrfToken,
+      sessionToken: sessionId,
+    });
+  });
+
+  router.post('/login', adminAuthRateLimiter, async (req: Request, res: Response) => {
     const db = getDb();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
@@ -288,7 +471,7 @@ export function createAdminAuthRouter() {
     }
 
     const adminUser = db.users.find((u) => u.email === SUPER_ADMIN_EMAIL);
-    if (!adminUser || !adminUser.passwordHash || adminUser.role !== 'super_admin') {
+    if (!adminUser || adminUser.role !== 'super_admin') {
       res.status(403).json({
         success: false,
         error: 'Compte Super Administrateur introuvable ou invalide.',
@@ -296,7 +479,24 @@ export function createAdminAuthRouter() {
       return;
     }
 
-    const validPassword = await bcrypt.compare(password, adminUser.passwordHash);
+    const envPasscode = getConfiguredAdminPasscode();
+    if (!envPasscode && !adminUser.passwordClaimed) {
+      res.status(409).json({
+        success: false,
+        setupRequired: true,
+        error: 'Veuillez d’abord définir votre mot de passe Super Administrateur initial.',
+      });
+      return;
+    }
+
+    let validPassword = false;
+    if (envPasscode) {
+      validPassword = timingSafeEqualsDigest(password, envPasscode);
+    }
+    if (!validPassword && adminUser.passwordClaimed && adminUser.passwordHash) {
+      validPassword = await bcrypt.compare(password, adminUser.passwordHash);
+    }
+
     if (!validPassword) {
       db.loginHistory.unshift({
         id: `log-${Date.now()}`,
@@ -328,6 +528,7 @@ export function createAdminAuthRouter() {
     const sessionId = crypto.randomBytes(32).toString('hex');
     const csrfToken = crypto.randomBytes(24).toString('hex');
     const now = Date.now();
+    const requiresTotp = Boolean(adminUser.totpEnabled && adminUser.totpSecret);
 
     const session: AdminSession = {
       id: sessionId,
@@ -335,7 +536,7 @@ export function createAdminAuthRouter() {
       email: adminUser.email,
       role: adminUser.role,
       csrfToken,
-      totpVerified: false, // 2FA TOTP obligatoire à chaque connexion
+      totpVerified: !requiresTotp,
       pendingTotpSecret: null,
       ip,
       userAgent: userAgent.slice(0, 80),
@@ -361,9 +562,11 @@ export function createAdminAuthRouter() {
 
     appendAuditLog({
       actorEmail: SUPER_ADMIN_EMAIL,
-      action: 'ADMIN_LOGIN_STEP1',
+      action: 'ADMIN_LOGIN',
       target: SUPER_ADMIN_EMAIL,
-      details: 'Mot de passe vérifié ; en attente de changement initial / 2FA',
+      details: requiresTotp
+        ? 'Mot de passe vérifié ; en attente de validation 2FA'
+        : 'Connexion Super Administrateur validée',
       ip,
       userAgent: userAgent.slice(0, 60),
     });
@@ -373,10 +576,48 @@ export function createAdminAuthRouter() {
       user: sanitizeUserForClient(adminUser),
       mustChangePassword: Boolean(adminUser.mustChangePassword),
       totpEnabled: Boolean(adminUser.totpEnabled),
-      totpVerified: false,
+      totpVerified: session.totpVerified,
       csrfToken,
       sessionToken: sessionId,
     });
+  });
+
+  router.patch('/profile', (req: Request, res: Response) => {
+    const resolved = resolveSession(req);
+    if (!resolved || resolved.email !== SUPER_ADMIN_EMAIL) {
+      res.status(403).json({ error: 'Session Super Admin invalide.' });
+      return;
+    }
+    if (!validateAdminAuthMutation(req, res, resolved)) return;
+
+    const fullName = String(req.body?.fullName || '').trim();
+    if (!fullName) {
+      res.status(400).json({ error: 'Le nom complet est requis.' });
+      return;
+    }
+
+    const db = getDb();
+    const adminUser = db.users.find((u) => u.email === SUPER_ADMIN_EMAIL);
+    if (!adminUser) {
+      res.status(404).json({ error: 'Compte introuvable.' });
+      return;
+    }
+
+    adminUser.fullName = fullName;
+    adminUser.updatedAt = new Date().toISOString();
+    saveDb(db);
+    touchSession(resolved.id);
+
+    appendAuditLog({
+      actorEmail: SUPER_ADMIN_EMAIL,
+      action: 'ADMIN_PROFILE_UPDATED',
+      target: SUPER_ADMIN_EMAIL,
+      details: `Nom administrateur mis à jour : ${fullName}`,
+      ip: getClientIp(req),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
+    });
+
+    res.json({ success: true, user: sanitizeUserForClient(adminUser) });
   });
 
   router.post('/change-password', async (req: Request, res: Response) => {
@@ -386,33 +627,25 @@ export function createAdminAuthRouter() {
       return;
     }
 
-    const csrfHeader = String(req.headers['x-csrf-token'] || '');
-    if (!csrfHeader || csrfHeader !== resolved.csrfToken) {
-      res.status(403).json({ error: 'Jeton CSRF invalide.' });
-      return;
-    }
+    if (!validateAdminAuthMutation(req, res, resolved)) return;
 
     const currentPassword = String(req.body?.currentPassword || '');
     const newPassword = String(req.body?.newPassword || '');
+    const envPasscode = getConfiguredAdminPasscode();
 
-    if (!resolved.user.passwordHash) {
-      res.status(400).json({ error: 'Configuration mot de passe invalide.' });
-      return;
+    let matchesCurrent = false;
+    if (envPasscode && timingSafeEqualsDigest(currentPassword, envPasscode)) {
+      matchesCurrent = true;
+    } else if (resolved.user.passwordHash) {
+      matchesCurrent = await bcrypt.compare(currentPassword, resolved.user.passwordHash);
     }
 
-    const matchesCurrent = await bcrypt.compare(currentPassword, resolved.user.passwordHash);
     if (!matchesCurrent) {
       res.status(400).json({ error: 'Le mot de passe actuel est incorrect.' });
       return;
     }
 
-    if (
-      newPassword.length < 12 ||
-      !/[A-Z]/.test(newPassword) ||
-      !/[a-z]/.test(newPassword) ||
-      !/\d/.test(newPassword) ||
-      !/[^A-Za-z0-9]/.test(newPassword)
-    ) {
+    if (!isStrongAdminPassword(newPassword)) {
       res.status(400).json({
         error:
           'Le nouveau mot de passe doit contenir au moins 12 caractères, une majuscule, une minuscule, un chiffre et un symbole.',
@@ -422,7 +655,7 @@ export function createAdminAuthRouter() {
 
     if (currentPassword === newPassword) {
       res.status(400).json({
-        error: 'Le nouveau mot de passe doit être différent du mot de passe initial.',
+        error: 'Le nouveau mot de passe doit être différent du mot de passe actuel.',
       });
       return;
     }
@@ -435,6 +668,7 @@ export function createAdminAuthRouter() {
     }
 
     adminUser.passwordHash = await bcrypt.hash(newPassword, 12);
+    adminUser.passwordClaimed = true;
     adminUser.mustChangePassword = false;
     adminUser.updatedAt = new Date().toISOString();
     saveDb(db);
@@ -444,7 +678,7 @@ export function createAdminAuthRouter() {
       actorEmail: SUPER_ADMIN_EMAIL,
       action: 'ADMIN_PASSWORD_CHANGED',
       target: SUPER_ADMIN_EMAIL,
-      details: 'Mot de passe initial remplacé avec hachage bcrypt (12 rounds)',
+      details: 'Mot de passe Super Admin mis à jour (bcrypt 12 rounds)',
       ip: getClientIp(req),
       userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
     });
@@ -465,11 +699,7 @@ export function createAdminAuthRouter() {
       return;
     }
 
-    const csrfHeader = String(req.headers['x-csrf-token'] || '');
-    if (!csrfHeader || csrfHeader !== resolved.csrfToken) {
-      res.status(403).json({ error: 'Jeton CSRF invalide.' });
-      return;
-    }
+    if (!validateAdminAuthMutation(req, res, resolved)) return;
 
     if (resolved.user.mustChangePassword) {
       res.status(403).json({
@@ -509,11 +739,7 @@ export function createAdminAuthRouter() {
       return;
     }
 
-    const csrfHeader = String(req.headers['x-csrf-token'] || '');
-    if (!csrfHeader || csrfHeader !== resolved.csrfToken) {
-      res.status(403).json({ error: 'Jeton CSRF invalide.' });
-      return;
-    }
+    if (!validateAdminAuthMutation(req, res, resolved)) return;
 
     if (resolved.user.mustChangePassword) {
       res.status(403).json({ error: 'Changement de mot de passe requis avant la 2FA.' });
@@ -557,7 +783,7 @@ export function createAdminAuthRouter() {
       actorEmail: SUPER_ADMIN_EMAIL,
       action: 'ADMIN_2FA_VERIFIED',
       target: SUPER_ADMIN_EMAIL,
-      details: 'Validation TOTP (Google Authenticator) réussie',
+      details: 'Double authentification TOTP (Google Authenticator) validée',
       ip: getClientIp(req),
       userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
     });
@@ -568,6 +794,57 @@ export function createAdminAuthRouter() {
       totpEnabled: true,
       totpVerified: true,
       csrfToken: session.csrfToken,
+    });
+  });
+
+  router.post('/totp/disable', async (req: Request, res: Response) => {
+    const resolved = resolveSession(req);
+    if (!resolved || resolved.email !== SUPER_ADMIN_EMAIL) {
+      res.status(403).json({ error: 'Session Super Admin requise.' });
+      return;
+    }
+    if (!validateAdminAuthMutation(req, res, resolved)) return;
+
+    const currentPassword = String(req.body?.currentPassword || '');
+    const envPasscode = getConfiguredAdminPasscode();
+    let valid = false;
+    if (envPasscode && timingSafeEqualsDigest(currentPassword, envPasscode)) {
+      valid = true;
+    } else if (resolved.user.passwordHash) {
+      valid = await bcrypt.compare(currentPassword, resolved.user.passwordHash);
+    }
+
+    if (!valid) {
+      res.status(401).json({ error: 'Mot de passe requis pour désactiver la 2FA.' });
+      return;
+    }
+
+    const db = getDb();
+    const adminUser = db.users.find((u) => u.email === SUPER_ADMIN_EMAIL)!;
+    adminUser.totpEnabled = false;
+    adminUser.totpSecret = null;
+    adminUser.updatedAt = new Date().toISOString();
+    saveDb(db);
+
+    const session = adminSessions.get(resolved.id);
+    if (session) {
+      session.pendingTotpSecret = null;
+      session.totpVerified = true;
+    }
+
+    appendAuditLog({
+      actorEmail: SUPER_ADMIN_EMAIL,
+      action: 'ADMIN_2FA_DISABLED',
+      target: SUPER_ADMIN_EMAIL,
+      details: 'Double authentification TOTP désactivée par le Super Admin',
+      ip: getClientIp(req),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
+    });
+
+    res.json({
+      success: true,
+      user: sanitizeUserForClient(adminUser),
+      totpEnabled: false,
     });
   });
 
@@ -584,7 +861,7 @@ export function createAdminAuthRouter() {
         userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
       });
     }
-    clearSessionCookie(res);
+    clearSessionCookie(req, res);
     res.json({ success: true });
   });
 
@@ -685,17 +962,33 @@ export function createProtectedAdminRouter() {
 
   router.get('/users/export.csv', (req: Request, res: Response) => {
     const db = getDb();
-    const header = ['ID', 'Nom complet', 'Email', 'Role', 'Region', 'Plan', 'Statut', 'Verifie', 'Inscription'];
+    const header = [
+      'ID',
+      'Nom complet',
+      'Email',
+      'Role',
+      'Region',
+      'Plan',
+      'Statut',
+      'Source',
+      'Statut liste attente',
+      'Profil',
+      'Verifie',
+      'Inscription',
+    ];
     const rows = db.users.map((u) => [
-      u.id,
-      `"${u.fullName.replace(/"/g, '""')}"`,
-      u.email,
-      u.role,
-      u.region,
-      u.plan,
-      u.status,
-      u.emailVerified ? 'Oui' : 'Non',
-      u.createdAt,
+      escapeCsvCell(u.id),
+      escapeCsvCell(u.fullName),
+      escapeCsvCell(u.email),
+      escapeCsvCell(u.role),
+      escapeCsvCell(u.region),
+      escapeCsvCell(u.plan),
+      escapeCsvCell(u.status),
+      escapeCsvCell(u.source || 'seed'),
+      escapeCsvCell(u.waitlistStatus || ''),
+      escapeCsvCell(u.profile || ''),
+      escapeCsvCell(u.emailVerified ? 'Oui' : 'Non'),
+      escapeCsvCell(u.createdAt),
     ]);
     const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
 
@@ -711,6 +1004,199 @@ export function createProtectedAdminRouter() {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="startbill-users.csv"');
     res.send(csv);
+  });
+
+  // Créer un utilisateur ou contact en liste d'attente depuis l'administration
+  router.post('/users', async (req: Request, res: Response) => {
+    const db = getDb();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const fullName = String(req.body?.fullName || '').trim();
+    const profile = String(req.body?.profile || 'autonome').trim();
+    const region = (normalizeRegionCode(req.body?.region) || 'CA') as RegionCode;
+    const role = (['user', 'pro', 'admin'].includes(req.body?.role)
+      ? req.body.role
+      : 'user') as UserRole;
+    const plan = (['Free', 'Start', 'Pro'].includes(req.body?.plan)
+      ? req.body.plan
+      : role === 'pro'
+      ? 'Pro'
+      : 'Free') as 'Free' | 'Start' | 'Pro';
+    const source = (req.body?.source === 'waitlist' ? 'waitlist' : 'admin') as 'waitlist' | 'admin';
+    const waitlistStatus: WaitlistStatus | undefined =
+      source === 'waitlist'
+        ? (['en_attente', 'invite', 'converti'].includes(req.body?.waitlistStatus)
+            ? req.body.waitlistStatus
+            : 'en_attente')
+        : undefined;
+    const adminNotes = String(req.body?.adminNotes || '').trim() || undefined;
+    const rawPassword = String(req.body?.password || '');
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: 'Adresse courriel invalide.' });
+      return;
+    }
+    if (!fullName) {
+      res.status(400).json({ error: 'Nom complet requis.' });
+      return;
+    }
+    if (email === SUPER_ADMIN_EMAIL || db.users.some((u) => u.email === email)) {
+      res.status(409).json({ error: 'Un utilisateur existe déjà avec cette adresse courriel.' });
+      return;
+    }
+    if (rawPassword && rawPassword.length < 8) {
+      res.status(400).json({ error: 'Le mot de passe optionnel doit contenir au moins 8 caractères.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const passwordHash = rawPassword ? await bcrypt.hash(rawPassword, 12) : undefined;
+    const currencyMap: Record<RegionCode, 'CAD' | 'XOF' | 'HTG'> = {
+      CA: DEFAULT_CURRENCY,
+      AF: 'XOF',
+      HT: 'HTG',
+    };
+
+    const newUser: DbUser = {
+      id: `${source === 'waitlist' ? 'wl' : 'usr'}-${Date.now()}`,
+      fullName,
+      email,
+      role,
+      region,
+      plan,
+      status: 'actif',
+      profile,
+      currency: currencyMap[region] || DEFAULT_CURRENCY,
+      emailVerified: source !== 'waitlist',
+      source,
+      waitlistStatus,
+      adminNotes,
+      passwordHash,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    db.users.unshift(newUser);
+    db.userActivities.unshift({
+      id: `act-${Date.now()}`,
+      userId: newUser.id,
+      action: source === 'waitlist' ? 'WAITLIST_AJOUT_ADMIN' : 'CREATION_ADMIN',
+      details: `Ajouté par le Super Administrateur (${region} · ${plan})`,
+      timestamp: nowIso,
+    });
+    saveDb(db);
+
+    appendAuditLog({
+      actorEmail: SUPER_ADMIN_EMAIL,
+      action: 'CREATE_USER',
+      target: newUser.email,
+      details: `Création ${source} (${role}, ${region}, ${plan})`,
+      ip: getClientIp(req),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
+    });
+
+    res.status(201).json({ success: true, user: sanitizeUserForClient(newUser) });
+  });
+
+  // Importer / synchroniser en masse des inscrits de la liste d'attente (sans écraser les comptes existants)
+  router.post('/waitlist/import', (req: Request, res: Response) => {
+    const db = getDb();
+    const rawEntries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+    const nowIso = new Date().toISOString();
+    let importedCount = 0;
+    let skippedCount = 0;
+
+    for (const item of rawEntries) {
+      const email = String(item?.email || '').trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email === SUPER_ADMIN_EMAIL) {
+        skippedCount++;
+        continue;
+      }
+      if (db.users.some((u) => u.email === email)) {
+        skippedCount++;
+        continue;
+      }
+      const fullName = String(item?.fullName || email.split('@')[0]).trim();
+      const region = (normalizeRegionCode(item?.region) || 'CA') as RegionCode;
+      const profile = String(item?.profile || 'autonome').trim();
+      const createdAt = item?.date && !Number.isNaN(Date.parse(String(item.date)))
+        ? new Date(String(item.date)).toISOString()
+        : nowIso;
+
+      const entry: DbUser = {
+        id: `wl-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        fullName,
+        email,
+        role: 'user',
+        region,
+        plan: 'Free',
+        status: 'actif',
+        profile,
+        currency: region === 'AF' ? 'XOF' : region === 'HT' ? 'HTG' : DEFAULT_CURRENCY,
+        emailVerified: false,
+        source: 'waitlist',
+        waitlistStatus: 'en_attente',
+        createdAt,
+      };
+      db.users.push(entry);
+      importedCount++;
+    }
+
+    if (importedCount > 0) {
+      saveDb(db);
+      appendAuditLog({
+        actorEmail: SUPER_ADMIN_EMAIL,
+        action: 'IMPORT_WAITLIST',
+        target: 'waitlist',
+        details: `${importedCount} contact(s) importé(s) dans la liste d'attente (${skippedCount} ignoré(s))`,
+        ip: getClientIp(req),
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
+      });
+    }
+
+    res.json({
+      success: true,
+      importedCount,
+      skippedCount,
+    });
+  });
+
+  // Inviter / approuver rapidement un inscrit de la liste d'attente
+  router.post('/users/:id/invite', (req: Request, res: Response) => {
+    const db = getDb();
+    const target = db.users.find((u) => u.id === req.params.id);
+    if (!target) {
+      res.status(404).json({ error: 'Utilisateur introuvable.' });
+      return;
+    }
+    if (target.email === SUPER_ADMIN_EMAIL || target.role === 'super_admin' || target.immutable) {
+      res.status(403).json({ error: 'Action non applicable sur le Super Administrateur.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    target.waitlistStatus = 'invite';
+    target.invitedAt = nowIso;
+    target.updatedAt = nowIso;
+
+    db.userActivities.unshift({
+      id: `act-${Date.now()}`,
+      userId: target.id,
+      action: 'WAITLIST_INVITATION_ENVOYEE',
+      details: `Invitation d'accès prioritaire validée par le Super Administrateur`,
+      timestamp: nowIso,
+    });
+    saveDb(db);
+
+    appendAuditLog({
+      actorEmail: SUPER_ADMIN_EMAIL,
+      action: 'INVITE_WAITLIST_USER',
+      target: target.email,
+      details: `Statut liste d'attente passé à "invite"`,
+      ip: getClientIp(req),
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
+    });
+
+    res.json({ success: true, user: sanitizeUserForClient(target) });
   });
 
   router.patch('/users/:id', (req: Request, res: Response) => {
@@ -730,14 +1216,48 @@ export function createProtectedAdminRouter() {
 
     const nextRole = req.body?.role as UserRole | undefined;
     const nextStatus = req.body?.status as UserStatus | undefined;
+    const nextPlan = req.body?.plan as 'Free' | 'Start' | 'Pro' | undefined;
+    const nextWaitlistStatus = req.body?.waitlistStatus as WaitlistStatus | undefined;
 
     if (nextRole && ['user', 'pro', 'admin'].includes(nextRole)) {
       target.role = nextRole;
-      if (nextRole === 'pro') target.plan = 'Pro';
+      if (nextRole === 'pro' && !nextPlan) target.plan = 'Pro';
+    }
+    if (nextPlan && ['Free', 'Start', 'Pro'].includes(nextPlan)) {
+      target.plan = nextPlan;
     }
     if (nextStatus && ['actif', 'suspendu'].includes(nextStatus)) {
       target.status = nextStatus;
     }
+    if (nextWaitlistStatus && ['en_attente', 'invite', 'converti'].includes(nextWaitlistStatus)) {
+      target.waitlistStatus = nextWaitlistStatus;
+      if (nextWaitlistStatus === 'invite' && !target.invitedAt) {
+        target.invitedAt = new Date().toISOString();
+      }
+      if (nextWaitlistStatus === 'converti') {
+        target.emailVerified = true;
+      }
+    }
+    if (typeof req.body?.emailVerified === 'boolean') {
+      target.emailVerified = req.body.emailVerified;
+    }
+    if (typeof req.body?.fullName === 'string' && req.body.fullName.trim()) {
+      target.fullName = req.body.fullName.trim();
+    }
+    if (typeof req.body?.profile === 'string' && req.body.profile.trim()) {
+      target.profile = req.body.profile.trim();
+    }
+    if (typeof req.body?.adminNotes === 'string') {
+      target.adminNotes = req.body.adminNotes.trim();
+    }
+    if (req.body?.region) {
+      const normalized = normalizeRegionCode(req.body.region);
+      if (normalized) {
+        target.region = normalized;
+        target.currency = normalized === 'AF' ? 'XOF' : normalized === 'HT' ? 'HTG' : 'CAD';
+      }
+    }
+
     target.updatedAt = new Date().toISOString();
     saveDb(db);
 
@@ -745,7 +1265,9 @@ export function createProtectedAdminRouter() {
       actorEmail: SUPER_ADMIN_EMAIL,
       action: 'UPDATE_USER',
       target: target.email,
-      details: `Mise à jour : role=${target.role}, statut=${target.status}`,
+      details: `Mise à jour : role=${target.role}, plan=${target.plan}, statut=${target.status}${
+        target.waitlistStatus ? `, waitlist=${target.waitlistStatus}` : ''
+      }`,
       ip: getClientIp(req),
       userAgent: String(req.headers['user-agent'] || '').slice(0, 60),
     });

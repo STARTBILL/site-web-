@@ -329,6 +329,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {onRouteToAdmin && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onRouteToAdmin();
+                  }}
+                  className="text-xs font-medium text-slate-500 dark:text-blue-300 hover:text-blue-600 dark:hover:text-white transition-colors"
+                >
+                  {lang === 'fr'
+                    ? 'Espace Super Administrateur →'
+                    : 'Super Admin Console →'}
+                </button>
+              </div>
+            )}
           </form>
         ) : (
           <form onSubmit={handleSignup} className="space-y-4">

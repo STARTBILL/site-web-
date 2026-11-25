@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
+  ShieldCheck,
   Lock,
   KeyRound,
   Smartphone,
@@ -9,12 +10,15 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  User,
 } from 'lucide-react';
 import { SUPER_ADMIN_EMAIL } from '../../hooks/useSuperAdmin';
 import { adminApiRequest } from '../../utils/adminClient';
 
 export interface AdminSessionState {
   authenticated: boolean;
+  setupRequired?: boolean;
+  envManaged?: boolean;
   user: {
     id: string;
     fullName: string;
@@ -45,12 +49,18 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Étape activation initiale (First-run Admin Claim)
+  const [setupFullName, setSetupFullName] = useState('Ferline Zogni — Admin STARTBILL');
+  const [setupPassword, setSetupPassword] = useState('');
+  const [setupConfirm, setSetupConfirm] = useState('');
+  const [showSetupPassword, setShowSetupPassword] = useState(false);
+
   // Étape changement mot de passe initial
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Étape 2FA TOTP
+  // Étape 2FA TOTP (uniquement si 2FA activée par l'administrateur)
   const [totpCode, setTotpCode] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [manualSecret, setManualSecret] = useState<string | null>(null);
@@ -64,11 +74,11 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     Boolean(nonAdminLoggedInEmail) &&
     nonAdminLoggedInEmail?.toLowerCase() !== SUPER_ADMIN_EMAIL;
 
-  // Charger le QR Code TOTP si le mot de passe a été validé et changé
   useEffect(() => {
     if (
       sessionState.authenticated &&
       !sessionState.mustChangePassword &&
+      sessionState.totpEnabled &&
       !sessionState.totpVerified &&
       sessionState.csrfToken
     ) {
@@ -99,6 +109,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   }, [
     sessionState.authenticated,
     sessionState.mustChangePassword,
+    sessionState.totpEnabled,
     sessionState.totpVerified,
     sessionState.csrfToken,
   ]);
@@ -130,6 +141,46 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     );
   }
 
+  const handleSetupClaim = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    if (setupPassword !== setupConfirm) {
+      setError('Les deux mots de passe ne correspondent pas.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { status, data } = await adminApiRequest('/api/auth/admin/setup', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: SUPER_ADMIN_EMAIL,
+          fullName: setupFullName.trim(),
+          password: setupPassword,
+        }),
+      });
+      if (status >= 400 || !data?.success) {
+        setError(data?.error || 'Impossible d’activer le compte administrateur.');
+        return;
+      }
+      setSetupPassword('');
+      setSetupConfirm('');
+      onSessionUpdated({
+        authenticated: true,
+        setupRequired: false,
+        user: data.user,
+        mustChangePassword: false,
+        totpEnabled: Boolean(data.totpEnabled),
+        totpVerified: Boolean(data.totpVerified),
+        csrfToken: data.csrfToken,
+      });
+    } catch {
+      setError('Erreur lors de la création du compte administrateur.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -140,6 +191,14 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
         method: 'POST',
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      if (data?.setupRequired) {
+        onSessionUpdated({
+          ...sessionState,
+          setupRequired: true,
+        });
+        setError(data.error || 'Veuillez définir votre mot de passe administrateur initial.');
+        return;
+      }
       if (status >= 400 || !data?.success) {
         setError(data?.error || 'Authentification refusée.');
         return;
@@ -148,6 +207,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
       setPassword('');
       onSessionUpdated({
         authenticated: true,
+        setupRequired: false,
         user: data.user,
         mustChangePassword: Boolean(data.mustChangePassword),
         totpEnabled: Boolean(data.totpEnabled),
@@ -184,7 +244,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setInfo('Mot de passe mis à jour. Veuillez maintenant valider votre code 2FA.');
+      setInfo('Mot de passe mis à jour avec succès.');
       onSessionUpdated({
         ...sessionState,
         user: data.user,
@@ -243,7 +303,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
                 Console Super Administrateur
               </h1>
               <p className="text-xs text-slate-500 dark:text-blue-300">
-                Accès restreint RBAC · 2FA obligatoire
+                Gestion utilisateurs, liste d’attente & plateforme
               </p>
             </div>
           </div>
@@ -269,8 +329,102 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           </div>
         )}
 
+        {/* ÉTAPE 0 : Activation initiale du compte Super Admin (première utilisation) */}
+        {!sessionState.authenticated && sessionState.setupRequired && (
+          <form onSubmit={handleSetupClaim} className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+              <div>
+                <p className="font-semibold">Activation de votre compte Super Administrateur</p>
+                <p className="mt-0.5 text-blue-800/80 dark:text-blue-300">
+                  Définissez votre mot de passe personnel pour accéder à la gestion complète de vos utilisateurs et de la liste d’attente.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                Email Super Administrateur (fixe)
+              </label>
+              <input
+                type="email"
+                readOnly
+                value={SUPER_ADMIN_EMAIL}
+                className="w-full px-3 py-2 text-sm bg-slate-100 dark:bg-blue-950/70 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-600 dark:text-blue-300 cursor-not-allowed"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                Nom de l’administrateur
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  required
+                  value={setupFullName}
+                  onChange={(e) => setSetupFullName(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                Choisir un mot de passe (12+ car., majuscule, minuscule, chiffre, symbole)
+              </label>
+              <div className="relative">
+                <input
+                  type={showSetupPassword ? 'text' : 'password'}
+                  required
+                  minLength={12}
+                  autoComplete="new-password"
+                  value={setupPassword}
+                  onChange={(e) => setSetupPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full pl-3 pr-10 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetupPassword(!showSetupPassword)}
+                  aria-label="Afficher ou masquer le mot de passe"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                >
+                  {showSetupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                Confirmer le mot de passe
+              </label>
+              <input
+                type={showSetupPassword ? 'text' : 'password'}
+                required
+                minLength={12}
+                autoComplete="new-password"
+                value={setupConfirm}
+                onChange={(e) => setSetupConfirm(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>{loading ? 'Activation...' : 'Créer et activer mon compte Admin'}</span>
+            </button>
+          </form>
+        )}
+
         {/* ÉTAPE 1 : Connexion Email + Mot de passe */}
-        {!sessionState.authenticated && (
+        {!sessionState.authenticated && !sessionState.setupRequired && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
@@ -317,18 +471,18 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
               className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors"
             >
               <Lock className="w-4 h-4" />
-              <span>{loading ? 'Vérification...' : 'Vérifier mes identifiants'}</span>
+              <span>{loading ? 'Vérification...' : 'Se connecter à l’administration'}</span>
             </button>
           </form>
         )}
 
-        {/* ÉTAPE 2 : Changement obligatoire du mot de passe initial */}
+        {/* ÉTAPE 2 : Changement obligatoire du mot de passe si demandé */}
         {sessionState.authenticated && sessionState.mustChangePassword && (
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
               <KeyRound className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                Première connexion : vous devez définir un nouveau mot de passe personnel (12+ caractères, majuscule, minuscule, chiffre et symbole).
+                Veuillez définir un nouveau mot de passe personnel (12+ caractères, majuscule, minuscule, chiffre et symbole).
               </span>
             </div>
 
@@ -381,9 +535,10 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
           </form>
         )}
 
-        {/* ÉTAPE 3 : Validation 2FA TOTP obligatoire */}
+        {/* ÉTAPE 3 : Validation 2FA TOTP (lorsqu'activée) */}
         {sessionState.authenticated &&
           !sessionState.mustChangePassword &&
+          sessionState.totpEnabled &&
           !sessionState.totpVerified && (
             <form onSubmit={handleVerifyTotp} className="space-y-4">
               <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
@@ -391,7 +546,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
                 <span>
                   {alreadyEnrolled
                     ? 'Saisissez le code à 6 chiffres généré par Google Authenticator.'
-                    : 'Scannez ce QR Code avec Google Authenticator pour activer la double authentification obligatoire.'}
+                    : 'Scannez ce QR Code avec Google Authenticator pour valider la double authentification.'}
                 </span>
               </div>
 

@@ -58,6 +58,7 @@ export const VALID_ADMIN_SECTIONS: AdminSectionId[] = [
   'logs',
   'settings',
   'analytics',
+  'account',
 ];
 
 export type PageId = typeof VALID_PAGES[number];

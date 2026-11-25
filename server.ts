@@ -129,6 +129,8 @@ async function startServer() {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const nowIso = new Date().toISOString();
+    const wasWaitlisted =
+      existingUser?.source === 'waitlist' || String(existingUser?.id || '').startsWith('wl-');
 
     const user: DbUser = {
       id: existingUser?.id || `usr-${Date.now()}`,
@@ -136,13 +138,18 @@ async function startServer() {
       email,
       role: 'user',
       region,
-      plan: 'Free',
-      status: 'actif',
+      plan: existingUser?.plan || 'Free',
+      status: existingUser?.status || 'actif',
       profile,
       currency: DEFAULT_CURRENCY,
       emailVerified: true,
+      source: 'signup',
+      waitlistStatus: wasWaitlisted ? 'converti' : undefined,
+      invitedAt: existingUser?.invitedAt,
+      adminNotes: existingUser?.adminNotes,
       passwordHash,
       createdAt: existingUser?.createdAt || nowIso,
+      updatedAt: nowIso,
       lastLoginAt: nowIso,
     };
 
@@ -151,6 +158,16 @@ async function startServer() {
     } else {
       db.users.push(user);
     }
+
+    db.userActivities.unshift({
+      id: `act-${Date.now()}`,
+      userId: user.id,
+      action: wasWaitlisted ? 'WAITLIST_CONVERTI' : 'INSCRIPTION_COMPTE',
+      details: wasWaitlisted
+        ? `Ancien inscrit liste d'attente converti en compte actif (${region})`
+        : `Nouveau compte créé (${region} · ${profile})`,
+      timestamp: nowIso,
+    });
     saveDb(db);
 
     res.status(201).json({
@@ -170,8 +187,30 @@ async function startServer() {
     const profile = String(req.body?.profile || 'autonome').trim();
     const region = (req.body?.normalizedRegion || DEFAULT_REGION) as RegionCode;
 
-    if (!email || !email.includes('@') || !fullName) {
-      res.status(400).json({ error: 'Champs requis manquants.' });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !fullName) {
+      res.status(400).json({ error: 'Champs requis manquants ou courriel invalide.' });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const existingIdx = db.users.findIndex((u) => u.email === email);
+
+    if (existingIdx >= 0) {
+      const existing = db.users[existingIdx];
+      if (!existing.passwordHash && existing.role === 'user') {
+        existing.fullName = fullName;
+        existing.profile = profile;
+        existing.region = region;
+        existing.source = 'waitlist';
+        existing.waitlistStatus = existing.waitlistStatus || 'en_attente';
+        existing.updatedAt = nowIso;
+        saveDb(db);
+      }
+      res.status(200).json({
+        success: true,
+        alreadyRegistered: true,
+        entry: sanitizeUserForClient(existing),
+      });
       return;
     }
 
@@ -186,13 +225,20 @@ async function startServer() {
       profile,
       currency: DEFAULT_CURRENCY,
       emailVerified: false,
-      createdAt: new Date().toISOString(),
+      source: 'waitlist',
+      waitlistStatus: 'en_attente',
+      createdAt: nowIso,
     };
 
-    if (!db.users.some((u) => u.email === email)) {
-      db.users.push(entry);
-      saveDb(db);
-    }
+    db.users.push(entry);
+    db.userActivities.unshift({
+      id: `act-${Date.now()}`,
+      userId: entry.id,
+      action: 'WAITLIST_INSCRIPTION',
+      details: `Inscription à la liste d'attente (${region} · ${profile})`,
+      timestamp: nowIso,
+    });
+    saveDb(db);
 
     res.status(201).json({
       success: true,
