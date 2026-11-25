@@ -104,6 +104,7 @@ export async function signInAdminWithGoogle(): Promise<{
   ok: boolean;
   user?: User;
   wrongEmail?: string;
+  unauthorizedDomain?: string;
   error?: string;
 }> {
   try {
@@ -130,9 +131,14 @@ export async function signInAdminWithGoogle(): Promise<{
       };
     }
     if (code === 'auth/unauthorized-domain') {
+      const hostname =
+        typeof window !== 'undefined' && window.location.hostname
+          ? window.location.hostname
+          : 'startbill.app';
       return {
         ok: false,
-        error: `Domaine (${window.location.hostname}) non autorisé dans Firebase Auth. Ajoutez ce domaine dans Authentication > Settings > Authorized domains.`,
+        unauthorizedDomain: hostname,
+        error: `Le domaine « ${hostname} » doit être ajouté aux domaines autorisés dans Firebase Authentication.`,
       };
     }
     return {

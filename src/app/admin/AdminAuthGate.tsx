@@ -11,10 +11,14 @@ import {
   Eye,
   EyeOff,
   User,
+  Copy,
+  Check,
+  ExternalLink,
 } from 'lucide-react';
 import { SUPER_ADMIN_EMAIL } from '../../hooks/useSuperAdmin';
 import { adminApiRequest } from '../../utils/adminClient';
 import { signInAdminWithGoogle } from '../../utils/firebaseAdminAdapter';
+import firebaseConfig from '../../../firebase-applet-config.json';
 
 export interface AdminSessionState {
   authenticated: boolean;
@@ -77,6 +81,8 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   const isForbiddenStandardUser =
     Boolean(nonAdminLoggedInEmail) &&
@@ -206,12 +212,19 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     e.preventDefault();
     setError(null);
     setInfo(null);
+    setUnauthorizedDomain(null);
     setLoading(true);
     try {
       const { status, data } = await adminApiRequest('/api/auth/admin/login', {
         method: 'POST',
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      if (data?.staticHostDetected || data?.isNonJson) {
+        setInfo(
+          'Utilisez le bouton « Continuer avec Google » ci-dessous pour vous connecter avec votre compte administrateur.'
+        );
+        return;
+      }
       if (data?.setupRequired) {
         onSessionUpdated({
           ...sessionState,
@@ -229,6 +242,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
       onSessionUpdated({
         authenticated: true,
         setupRequired: false,
+        authMode: 'node',
         user: data.user,
         mustChangePassword: Boolean(data.mustChangePassword),
         totpEnabled: Boolean(data.totpEnabled),
@@ -312,11 +326,16 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
   const handleGoogleLogin = async () => {
     setError(null);
     setInfo(null);
+    setUnauthorizedDomain(null);
     setLoading(true);
     try {
       const res = await signInAdminWithGoogle();
       if (!res.ok || !res.user) {
-        setError(res.error || 'Connexion Google refusée.');
+        if (res.unauthorizedDomain) {
+          setUnauthorizedDomain(res.unauthorizedDomain);
+        } else {
+          setError(res.error || 'Connexion Google refusée.');
+        }
         return;
       }
       onSessionUpdated({
@@ -344,275 +363,326 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
     }
   };
 
+  const handleCopyDomain = async () => {
+    const domainToCopy = unauthorizedDomain || 'startbill.app';
+    try {
+      await navigator.clipboard.writeText(domainToCopy);
+      setCopiedDomain(true);
+      window.setTimeout(() => setCopiedDomain(false), 2500);
+    } catch {
+      // Ignore clipboard failures
+    }
+  };
+
   const isStaticCloudOnly = Boolean(sessionState.staticHostDetected);
   const visibleError = error || (!isStaticCloudOnly ? sessionState.backendError : null);
+  const firebaseAuthSettingsUrl = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#071328] p-4">
-      <div className="w-full max-w-md bg-white dark:bg-[#0c1e3d] border border-slate-200 dark:border-blue-900 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/assets/aistudio/logo_icon.webp"
-              alt="STARTBILL"
-              className="h-8 w-auto object-contain"
-            />
-            <div>
-              <h1 className="text-base font-bold text-slate-900 dark:text-white">
-                Console Super Administrateur
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-blue-300">
-                Gestion utilisateurs, liste d’attente & plateforme
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onExitAdmin}
-            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
-          >
-            Retour
-          </button>
-        </div>
-
-        {visibleError && (
-          <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 space-y-2">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{visibleError}</span>
-            </div>
-            {!isStaticCloudOnly && sessionState.backendError && onRetrySession && (
-              <button
-                type="button"
-                onClick={onRetrySession}
-                className="text-[11px] font-semibold underline hover:text-red-900 dark:hover:text-red-100"
-              >
-                Réessayer la connexion au serveur
-              </button>
-            )}
-          </div>
-        )}
-
-        {info && (
-          <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{info}</span>
-          </div>
-        )}
-
-        {/* ÉTAPE 0 : Activation initiale du compte Super Admin (première utilisation Node.js) */}
-        {!sessionState.authenticated && !isStaticCloudOnly && sessionState.setupRequired && (
-          <form onSubmit={handleSetupClaim} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#071328] px-4 py-10">
+      <div className="w-full max-w-md space-y-4">
+        <div className="bg-white dark:bg-[#0c1e3d] border border-slate-200 dark:border-blue-900/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+          {/* En-tête conforme */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/80 border border-blue-100 dark:border-blue-800 flex items-center justify-center shrink-0">
+                <img
+                  src="/assets/aistudio/logo_icon.webp"
+                  alt="STARTBILL"
+                  className="h-6 w-auto object-contain"
+                />
+              </div>
               <div>
-                <p className="font-semibold">Activation de votre compte Super Administrateur</p>
-                <p className="mt-0.5 text-blue-800/80 dark:text-blue-300">
-                  Définissez votre mot de passe personnel pour accéder à la gestion complète de vos utilisateurs et de la liste d’attente.
+                <h1 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                  Espace Administrateur
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-blue-300 mt-0.5">
+                  Accès sécurisé · STARTBILL
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={onExitAdmin}
+              className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 dark:text-blue-300 dark:hover:text-white transition-colors whitespace-nowrap pt-1"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Retour</span>
+            </button>
+          </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                Email Super Administrateur (fixe)
-              </label>
-              <input
-                type="email"
-                readOnly
-                value={SUPER_ADMIN_EMAIL}
-                className="w-full px-3 py-2 text-sm bg-slate-100 dark:bg-blue-950/70 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-600 dark:text-blue-300 cursor-not-allowed"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                Nom de l’administrateur
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  required
-                  value={setupFullName}
-                  onChange={(e) => setSetupFullName(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
+          {unauthorizedDomain && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-100 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-semibold">
+                    Domaine « {unauthorizedDomain} » à autoriser dans Firebase
+                  </p>
+                  <p className="text-amber-900/85 dark:text-amber-200/90 leading-relaxed">
+                    Pour activer la connexion Google sur votre domaine de production :
+                  </p>
+                </div>
+              </div>
+              <ol className="list-decimal pl-5 space-y-1 text-[11px] text-amber-900/90 dark:text-amber-200">
+                <li>
+                  Ouvrez <strong>Firebase Console</strong> → <strong>Authentication</strong> →{' '}
+                  <strong>Settings</strong> → <strong>Authorized domains</strong>.
+                </li>
+                <li>
+                  Cliquez sur <strong>Add domain</strong> et ajoutez{' '}
+                  <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 font-mono">
+                    {unauthorizedDomain}
+                  </code>
+                  .
+                </li>
+                <li>Revenez ici et cliquez sur <strong>Continuer avec Google</strong>.</li>
+              </ol>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCopyDomain}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100 hover:bg-amber-100/60 transition-colors"
+                >
+                  {copiedDomain ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Domaine copié</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copier {unauthorizedDomain}</span>
+                    </>
+                  )}
+                </button>
+                <a
+                  href={firebaseAuthSettingsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+                >
+                  <span>Ouvrir Firebase Auth</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                Choisir un mot de passe (12+ car., majuscule, minuscule, chiffre, symbole)
-              </label>
-              <div className="relative">
+          {visibleError && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{visibleError}</span>
+              </div>
+              {!isStaticCloudOnly && sessionState.backendError && onRetrySession && (
+                <button
+                  type="button"
+                  onClick={onRetrySession}
+                  className="text-[11px] font-semibold underline hover:text-red-900 dark:hover:text-red-100"
+                >
+                  Réessayer
+                </button>
+              )}
+            </div>
+          )}
+
+          {info && (
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-200 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+              <span>{info}</span>
+            </div>
+          )}
+
+          {/* ÉTAPE 0 : Activation initiale du compte Super Admin */}
+          {!sessionState.authenticated && !isStaticCloudOnly && sessionState.setupRequired && (
+            <form onSubmit={handleSetupClaim} className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <p className="font-semibold">Activation du compte Super Administrateur</p>
+                  <p className="mt-0.5 text-blue-800/80 dark:text-blue-300">
+                    Définissez votre mot de passe personnel pour accéder à la gestion complète de la plateforme.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                  Courriel administrateur
+                </label>
+                <input
+                  type="email"
+                  readOnly
+                  value={SUPER_ADMIN_EMAIL}
+                  className="w-full px-3 py-2 text-sm bg-slate-100 dark:bg-blue-950/70 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-600 dark:text-blue-300 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                  Nom complet
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={setupFullName}
+                    onChange={(e) => setSetupFullName(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                  Mot de passe (12+ car., majuscule, minuscule, chiffre, symbole)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSetupPassword ? 'text' : 'password'}
+                    required
+                    minLength={12}
+                    autoComplete="new-password"
+                    value={setupPassword}
+                    onChange={(e) => setSetupPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full pl-3 pr-10 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSetupPassword(!showSetupPassword)}
+                    aria-label="Afficher ou masquer le mot de passe"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  >
+                    {showSetupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
+                  Confirmer le mot de passe
+                </label>
                 <input
                   type={showSetupPassword ? 'text' : 'password'}
                   required
                   minLength={12}
                   autoComplete="new-password"
-                  value={setupPassword}
-                  onChange={(e) => setSetupPassword(e.target.value)}
+                  value={setupConfirm}
+                  onChange={(e) => setSetupConfirm(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full pl-3 pr-10 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowSetupPassword(!showSetupPassword)}
-                  aria-label="Afficher ou masquer le mot de passe"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                >
-                  {showSetupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                Confirmer le mot de passe
-              </label>
-              <input
-                type={showSetupPassword ? 'text' : 'password'}
-                required
-                minLength={12}
-                autoComplete="new-password"
-                value={setupConfirm}
-                onChange={(e) => setSetupConfirm(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>{loading ? 'Activation...' : 'Activer le compte administrateur'}</span>
+              </button>
+            </form>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>{loading ? 'Activation...' : 'Créer et activer mon compte Admin'}</span>
-            </button>
-          </form>
-        )}
-
-        {/* ÉTAPE 1 : Connexion Email + Mot de passe (lorsque backend Node actif) */}
-        {!sessionState.authenticated && !isStaticCloudOnly && !sessionState.setupRequired && (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                Email Super Administrateur
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="username"
-                className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  placeholder="••••••••••••"
-                  className="w-full pl-3 pr-10 py-2 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label="Afficher ou masquer le mot de passe"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors"
-            >
-              <Lock className="w-4 h-4" />
-              <span>{loading ? 'Vérification...' : 'Se connecter à l’administration'}</span>
-            </button>
-          </form>
-        )}
-
-        {/* Connexion Cloud Google / Firebase (fonctionne en mode statique Hostinger ET avec Node.js) */}
-        {!sessionState.authenticated && (
-          <div className="space-y-3">
-            {isStaticCloudOnly ? (
-              <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+          {/* ÉTAPE 1 : Espace de connexion conforme (Email/Mot de passe + Google) */}
+          {!sessionState.authenticated && (isStaticCloudOnly || !sessionState.setupRequired) && (
+            <div className="space-y-5">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <p className="font-semibold">Connexion Cloud Administrateur active</p>
-                  <p className="mt-0.5 text-blue-800/80 dark:text-blue-300">
-                    Connectez-vous avec votre compte Google autorisé (<span className="font-semibold">{SUPER_ADMIN_EMAIL}</span>) pour gérer vos utilisateurs et votre liste d’attente en temps réel.
-                  </p>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1.5">
+                    Adresse courriel administrateur
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    placeholder="contact.startbill@gmail.com"
+                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
-              </div>
-            ) : (
-              <div className="relative flex items-center py-1">
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-blue-200 mb-1.5">
+                    Mot de passe
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      placeholder="••••••••••••"
+                      className="w-full pl-3.5 pr-10 py-2.5 text-sm bg-slate-50 dark:bg-blue-950/40 border border-slate-200 dark:border-blue-800 rounded-lg text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label="Afficher ou masquer le mot de passe"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>{loading ? 'Connexion...' : 'Se connecter'}</span>
+                </button>
+              </form>
+
+              <div className="relative flex items-center">
                 <div className="flex-grow border-t border-slate-200 dark:border-blue-900" />
                 <span className="mx-3 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-blue-400">
                   ou
                 </span>
                 <div className="flex-grow border-t border-slate-200 dark:border-blue-900" />
               </div>
-            )}
 
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-sm font-semibold border border-slate-300 dark:border-blue-700 bg-white dark:bg-blue-950/60 text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-blue-900/60 disabled:opacity-60 transition-colors shadow-xs"
-            >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fill="#4285F4"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
-                />
-              </svg>
-              <span>
-                {loading
-                  ? 'Connexion en cours...'
-                  : 'Se connecter avec Google (contact.startbill@gmail.com)'}
-              </span>
-            </button>
-
-            {isStaticCloudOnly && onRetrySession && (
-              <div className="text-center pt-1">
+              <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={onRetrySession}
-                  className="text-[11px] font-medium text-slate-500 dark:text-blue-300 hover:underline"
+                  onClick={handleGoogleLogin}
+                  disabled={loading}
+                  className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg text-sm font-semibold border border-slate-300 dark:border-blue-700 bg-white dark:bg-blue-950/60 text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-blue-900/60 disabled:opacity-60 transition-colors shadow-xs"
                 >
-                  Revérifier la disponibilité du serveur Node.js
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
+                    />
+                  </svg>
+                  <span>Continuer avec Google</span>
                 </button>
+                <p className="text-[11px] text-center text-slate-500 dark:text-blue-300/80">
+                  Compte autorisé : <span className="font-medium">{SUPER_ADMIN_EMAIL}</span>
+                </p>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
         {/* ÉTAPE 2 : Changement obligatoire du mot de passe si demandé */}
         {sessionState.authenticated && sessionState.mustChangePassword && (
@@ -734,6 +804,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({
               </button>
             </form>
           )}
+        </div>
       </div>
     </div>
   );
